@@ -93,9 +93,9 @@ Open issues for any bugs or improvement ideas.
 
 ## 📬 Contact
 
-**Made with ❤️ by Sreeja Mettupally**
-📧 [reddysreeja741@gmail.com](mailto:reddysreeja741@gmail.com)
-🔗 [LinkedIn](https://linkedin.com/in/sreeja-mettupally) 
+**Made with ❤️ by DILEEP GUGLAVATH**
+📧 [dileepguglavath9@gmail.com](mailto:dileepguglavath9@gmail.com)
+🔗 [LinkedIn](https://linkedin.com/in/dileepguglavath/) 
 
 
 
