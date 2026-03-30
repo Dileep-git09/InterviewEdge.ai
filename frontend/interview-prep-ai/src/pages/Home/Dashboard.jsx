@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { LuPlus } from "react-icons/lu"; // Assuming LuPlus is imported from react-icons/lu
-import DashboardLayout from "../../components/Layouts/DashboardLayout"; // Adjust the path as needed
+import { LuPlus, LuTrash2 } from "react-icons/lu";
+import DashboardLayout from "../../components/Layouts/DashboardLayout";
 import axiosInstance from "../../utils/axiosinstance";
 import { API_PATHS } from "../../utils/apiPaths";
 import moment from "moment";
@@ -10,17 +10,20 @@ import toast from "react-hot-toast";
 import SummaryCard from "../../components/Cards/SummaryCard";
 import CreateSessionForm from "./CreateSessionForm";
 import Modal from "../../components/Modal";
+
 const Dashboard = () => {
   const navigate = useNavigate();
 
   const [openCreateModal, setOpenCreateModal] = useState(false);
   const [sessions, setSessions] = useState([]);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // openDeleteAlert holds { open: bool, data: session object | null }
   const [openDeleteAlert, setOpenDeleteAlert] = useState({
     open: false,
     data: null,
   });
 
-  // Placeholder for fetchAllSessions - you would implement the actual API call here
   const fetchAllSessions = async () => {
     try {
       const response = await axiosInstance.get(API_PATHS.SESSION.GET_ALL);
@@ -29,20 +32,35 @@ const Dashboard = () => {
       console.error("Error fetching sessions:", error);
       toast.error("Failed to fetch sessions.");
     }
-    console.log("Fetching all sessions...");
-    // Mock data for demonstration
   };
 
-  // Placeholder for deleteSession - you would implement the actual API call here
-  const deleteSession = async (sessionId) => {
+  // Called when the user clicks the trash icon on a card.
+  // Opens the confirmation dialog instead of deleting immediately.
+  const handleDeleteClick = (session) => {
+    setOpenDeleteAlert({ open: true, data: session });
+  };
+
+  // Called only after the user confirms inside the dialog.
+  const handleConfirmDelete = async () => {
+    if (!openDeleteAlert.data) return;
+    setIsDeleting(true);
     try {
-      await axiosInstance.delete(API_PATHS.SESSION.DELETE(sessionId));
+      await axiosInstance.delete(
+        API_PATHS.SESSION.DELETE(openDeleteAlert.data._id)
+      );
       toast.success("Session deleted successfully!");
+      setOpenDeleteAlert({ open: false, data: null });
       fetchAllSessions();
     } catch (error) {
       console.error("Error deleting session:", error);
       toast.error("Failed to delete session.");
+    } finally {
+      setIsDeleting(false);
     }
+  };
+
+  const handleCancelDelete = () => {
+    setOpenDeleteAlert({ open: false, data: null });
   };
 
   useEffect(() => {
@@ -68,7 +86,8 @@ const Dashboard = () => {
                   : ""
               }
               onSelect={() => navigate(`/interview-prep/${data?._id}`)}
-              onDelete={() => deleteSession(data._id)}
+              // Pass the whole session object so we can show its name in the dialog
+              onDelete={() => handleDeleteClick(data)}
             />
           ))}
         </div>
@@ -90,17 +109,64 @@ const Dashboard = () => {
         </button>
       </div>
 
+      {/* Create session modal */}
       <Modal
         isOpen={openCreateModal}
-        onClose={() => {
-          setOpenCreateModal(false);
-        }}
+        onClose={() => setOpenCreateModal(false)}
         hideHeader
       >
         <div>
           <CreateSessionForm onClose={() => setOpenCreateModal(false)} />
         </div>
       </Modal>
+
+      {/* ── Delete confirmation dialog ─────────────────────────────────────── */}
+      <Modal
+        isOpen={openDeleteAlert.open}
+        onClose={handleCancelDelete}
+        title="Delete Session"
+      >
+        <div className="flex flex-col items-center text-center gap-4 py-2">
+          {/* Warning icon */}
+          <div className="w-14 h-14 flex items-center justify-center rounded-full bg-red-100 text-red-500">
+            <LuTrash2 size={26} />
+          </div>
+
+          {/* Message */}
+          <div>
+            <p className="text-gray-800 font-medium text-base">
+              Delete &quot;{openDeleteAlert.data?.role}&quot; session?
+            </p>
+            <p className="text-gray-500 text-sm mt-1">
+              This will permanently remove the session and all{" "}
+              <span className="font-medium text-gray-700">
+                {openDeleteAlert.data?.questions?.length || 0} question
+                {openDeleteAlert.data?.questions?.length !== 1 ? "s" : ""}
+              </span>{" "}
+              inside it. This action cannot be undone.
+            </p>
+          </div>
+
+          {/* Actions */}
+          <div className="flex gap-3 w-full mt-1">
+            <button
+              onClick={handleCancelDelete}
+              disabled={isDeleting}
+              className="flex-1 py-2 rounded-md border border-gray-300 text-gray-700 text-sm font-medium hover:bg-gray-50 transition disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleConfirmDelete}
+              disabled={isDeleting}
+              className="flex-1 py-2 rounded-md bg-red-500 text-white text-sm font-medium hover:bg-red-600 transition disabled:opacity-50"
+            >
+              {isDeleting ? "Deleting..." : "Yes, Delete"}
+            </button>
+          </div>
+        </div>
+      </Modal>
+      {/* ─────────────────────────────────────────────────────────────────── */}
     </DashboardLayout>
   );
 };
