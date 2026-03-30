@@ -7,6 +7,12 @@ const sessionSchema = new mongoose.Schema(
     experience: { type: String, required: true },
     topicsToFocus: { type: String, required: true },
     description: String,
+    //added the difficulty field to the session model
+    difficulty: {
+      type: String,
+      enum: ["easy", "medium", "hard"],
+      default: "medium",
+    },
     questions: [{ type: mongoose.Schema.Types.ObjectId, ref: "Question" }],
   },
   { timestamps: true }

@@ -1,6 +1,14 @@
 import React, { useEffect, useRef, useState } from "react";
 import { LuChevronDown, LuPin, LuPinOff, LuSparkles } from "react-icons/lu";
 
+const DIFFICULTY_STYLES = {
+  easy: "bg-green-100 text-green-800",
+  medium: "bg-yellow-100 text-yellow-800",
+  hard: "bg-red-100 text-red-800",
+};
+// ─────────────────────────────────────────────
+// Helper: render formatted answer text
+// ─────────────────────────────────────────────
 // Component to format answer text
 const FormattedAnswer = ({ answer }) => {
   if (!answer) return null;
@@ -17,13 +25,13 @@ const FormattedAnswer = ({ answer }) => {
 
     // Handle bold (**text**)
     formatted = formatted.replace(
-      /\*\*([^\*]+)\*\*/g,
+      /\*\*([^*]+)\*\*/g,
       '<strong class="font-semibold text-gray-800">$1</strong>'
     );
 
     // Handle italic (*text*)
     formatted = formatted.replace(
-      /\*([^\*]+)\*/g,
+      /\*([^*]+)\*/g,
       '<em class="italic text-gray-700">$1</em>'
     );
 
@@ -138,13 +146,16 @@ const FormattedAnswer = ({ answer }) => {
     </div>
   );
 };
-
+// ─────────────────────────────────────────────
+// QuestionCard
+// ─────────────────────────────────────────────
 const QuestionCard = ({
   question,
   answer,
   onLearnMore,
   isPinned,
   onTogglePin,
+  difficulty,
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [height, setHeight] = useState(0);
@@ -161,10 +172,19 @@ const QuestionCard = ({
 
   const toggleExpand = () => setIsExpanded(!isExpanded);
 
+  const difficultyLabel = difficulty 
+    ? difficulty.charAt(0).toUpperCase() + difficulty.slice(1)
+    : null;
+
+  const difficultyStyles = difficulty 
+    ? DIFFICULTY_STYLES[difficulty] || "bg-gray-100 text-gray-700"
+    : null;
+    
+
   return (
     <div className="bg-white rounded-xl shadow-md px-5 py-4 mb-6 md:mx-4">
       <div className="flex justify-between items-start">
-        {/* Question Section */}
+        {/* Question + difficulty badge */}
         <div
           className="flex items-start gap-3 cursor-pointer flex-1"
           onClick={toggleExpand}
@@ -172,9 +192,18 @@ const QuestionCard = ({
           <span className="text-xs md:text-sm font-semibold text-gray-400 mt-[2px]">
             Q
           </span>
-          <h3 className="text-sm md:text-base font-medium text-gray-800 leading-snug">
-            {question}
-          </h3>
+          <div className="flex-1">
+            <h3 className="text-sm md:text-base font-medium text-gray-800 leading-snug">
+              {question}
+            </h3>
+            {difficultyLabel && (
+              <span
+                className={`inline-block mt-1.5 text-xs font-semibold px-2.5 py-0.5 rounded-full ${difficultyStyles}`}
+              >
+                {difficultyLabel}
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Actions */}

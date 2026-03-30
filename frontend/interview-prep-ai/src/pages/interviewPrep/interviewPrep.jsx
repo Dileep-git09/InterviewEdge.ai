@@ -125,7 +125,7 @@ const InterviewPrep = () => {
     if (sessionId) {
       fetchSessionDetailsById();
     }
-  }, [sessionId]); // Added sessionId to dependency array
+  }, ); // Added sessionId to dependency array
 
   return (
     <DashboardLayout>

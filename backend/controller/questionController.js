@@ -17,13 +17,15 @@ exports.addQuestionsToSession = async (req, res) => {
     if (!session) {
       return res.status(404).json({ message: "Session not found" });
     }
-
+    // Preserve difficulty from each question object if present,
+    // otherwise fall back to the session's saved difficulty level
     // Create new questions
     const createdQuestions = await Question.insertMany(
       questions.map((q) => ({
         session: sessionId,
         question: q.question,
         answer: q.answer,
+        difficulty: q.difficulty || session.difficulty || "medium",
       }))
     );
 

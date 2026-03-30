@@ -6,18 +6,32 @@ const Question = require("../models/Question");
 // @access  Private
 exports.createSession = async (req, res) => {
   try {
-    const { role, experience, topicsToFocus, description, questions } =
-      req.body;
+    const { 
+      role, 
+      experience, 
+      topicsToFocus, 
+      description, 
+      questions, 
+      difficulty = "medium"
+     } = req.body;
+      
     const userId = req.user._id;
 
+    const validDifficulties = ["easy", "medium", "hard"];
+    const safeDifficulty = validDifficulties.includes(difficulty)
+      ? difficulty
+      : "medium";
+
+     // Create the session with difficulty saved in the session document
     const session = await Session.create({
       user: userId,
       role,
       experience,
       topicsToFocus,
       description,
+      difficulty: safeDifficulty,
     });
-
+    // Create each question, persisting its difficulty as well
     const questionDocs = await Promise.all(
       questions.map(async (q) => {
         const question = await Question.create({

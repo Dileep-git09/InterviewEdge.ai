@@ -14,7 +14,7 @@ const ai = new GoogleGenAI({
 // ==========================================
 const generateInterviewQuestions = async (req, res) => {
   try {
-    const { role, experience, topicsToFocus } = req.body;
+    const { role, experience, topicsToFocus, difficulty = "medium" } = req.body;
 
     // Default questions if frontend doesn't send
     const numberOfQuestions = req.body.numberOfQuestions || 5;
@@ -24,12 +24,17 @@ const generateInterviewQuestions = async (req, res) => {
         message: "Missing required fields: role, experience, topicsToFocus",
       });
     }
+    const validDifficulties = ["easy", "medium", "hard"];
+    const safeDifficulty = validDifficulties.includes(difficulty)
+      ? difficulty
+      : "medium";
 
     const prompt = questionAnswerPrompt(
       role,
       experience,
       topicsToFocus,
-      numberOfQuestions
+      numberOfQuestions,
+      safeDifficulty
     );
 
     const response = await ai.models.generateContent({
@@ -62,6 +67,12 @@ const generateInterviewQuestions = async (req, res) => {
 
       throw new Error("AI returned invalid JSON format");
     }
+     // Attach difficulty to each question object so the session/question
+    // controllers can persist it to MongoDB
+    const dataWithDifficulty = data.map((q) => ({
+      ...q,
+      difficulty: safeDifficulty,
+    }));
 
     res.status(200).json(data);
 

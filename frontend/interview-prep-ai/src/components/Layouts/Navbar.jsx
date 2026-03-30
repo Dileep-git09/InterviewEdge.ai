@@ -1,5 +1,5 @@
 import React from "react";
-import { Link } from "react-router-dom";
+import { Link} from "react-router-dom";
 import ProfileInfoCard from "../Cards/ProfileInfoCard";
 import { Sparkles } from "lucide-react"; // Optional icon
 
