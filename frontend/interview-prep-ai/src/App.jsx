@@ -7,6 +7,7 @@ import SignUp from "./pages/Auth/SignUp";
 import LandingPage from "./pages/LandingPage";
 import Dashboard from "./pages/Home/Dashboard";
 import InterviewPrep from "./pages/interviewPrep/interviewPrep";
+import ResumePrep from "./pages/ResumePrep/ResumePrep";
 import UserProvider from "./context/userContext";
 
 const App = () => {
@@ -15,23 +16,19 @@ const App = () => {
       <Router>
         <div>
           <Routes>
-            {/*] Default Route */}
-            <Route path="/" element={<LandingPage />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/signup" element={<SignUp />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route
-              path="/interview-prep/:sessionId"
-              element={<InterviewPrep />}
-            />
+            <Route path="/"                         element={<LandingPage />} />
+            <Route path="/login"                    element={<Login />} />
+            <Route path="/signup"                   element={<SignUp />} />
+            <Route path="/dashboard"                element={<Dashboard />} />
+            <Route path="/interview-prep/:sessionId" element={<InterviewPrep />} />
+            {/* Resume-based interview prep — populated via sessionStorage after upload */}
+            <Route path="/resume-prep"              element={<ResumePrep />} />
           </Routes>
 
           <Toaster
             toastOptions={{
               className: "",
-              style: {
-                fontSize: "13px",
-              },
+              style: { fontSize: "13px" },
             }}
           />
         </div>
