@@ -59,7 +59,7 @@ const SignUp = ({ setCurrentPage }) => {
           </label>
           <input
             type="text"
-            placeholder="Sreeja Reddy"
+            placeholder="John Wick"
             value={name}
             onChange={(e) => setName(e.target.value)}
             className="w-full border px-3 py-2 rounded"

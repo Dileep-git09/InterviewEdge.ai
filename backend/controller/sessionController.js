@@ -30,6 +30,7 @@ exports.createSession = async (req, res) => {
       topicsToFocus,
       description,
       difficulty: safeDifficulty,
+      source: "manual", // Mark as manually created
     });
     // Create each question, persisting its difficulty as well
     const questionDocs = await Promise.all(
@@ -38,6 +39,7 @@ exports.createSession = async (req, res) => {
           session: session._id,
           question: q.question,
           answer: q.answer,
+          difficulty: q.difficulty ||  safeDifficulty, // Save the difficulty in the question document
         });
         return question._id;
       })
@@ -120,7 +122,7 @@ exports.deleteSession = async (req, res) => {
     await Question.deleteMany({ session: session._id });
 
     // Then, delete the session
-    await Session.deleteOne();
+    await Session.deleteOne({ _id: session._id });
 
     res.status(200).json({ message: "Session deleted successfully" });
   } catch (error) {

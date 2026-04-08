@@ -16,13 +16,13 @@ const App = () => {
       <Router>
         <div>
           <Routes>
-            <Route path="/"                         element={<LandingPage />} />
-            <Route path="/login"                    element={<Login />} />
-            <Route path="/signup"                   element={<SignUp />} />
-            <Route path="/dashboard"                element={<Dashboard />} />
+            <Route path="/"                          element={<LandingPage />} />
+            <Route path="/login"                     element={<Login />} />
+            <Route path="/signup"                    element={<SignUp />} />
+            <Route path="/dashboard"                 element={<Dashboard />} />
             <Route path="/interview-prep/:sessionId" element={<InterviewPrep />} />
-            {/* Resume-based interview prep — populated via sessionStorage after upload */}
-            <Route path="/resume-prep"              element={<ResumePrep />} />
+            {/* Resume-based prep — session ID from MongoDB, supports revisiting */}
+            <Route path="/resume-prep/:sessionId"    element={<ResumePrep />} />
           </Routes>
 
           <Toaster

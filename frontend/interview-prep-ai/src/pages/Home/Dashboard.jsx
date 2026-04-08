@@ -17,8 +17,6 @@ const Dashboard = () => {
   const [openCreateModal, setOpenCreateModal] = useState(false);
   const [sessions, setSessions] = useState([]);
   const [isDeleting, setIsDeleting] = useState(false);
-
-  // openDeleteAlert holds { open: bool, data: session object | null }
   const [openDeleteAlert, setOpenDeleteAlert] = useState({
     open: false,
     data: null,
@@ -34,13 +32,10 @@ const Dashboard = () => {
     }
   };
 
-  // Called when the user clicks the trash icon on a card.
-  // Opens the confirmation dialog instead of deleting immediately.
   const handleDeleteClick = (session) => {
     setOpenDeleteAlert({ open: true, data: session });
   };
 
-  // Called only after the user confirms inside the dialog.
   const handleConfirmDelete = async () => {
     if (!openDeleteAlert.data) return;
     setIsDeleting(true);
@@ -61,6 +56,15 @@ const Dashboard = () => {
 
   const handleCancelDelete = () => {
     setOpenDeleteAlert({ open: false, data: null });
+  };
+
+  // Route to the correct page depending on the session source
+  const handleSelectSession = (session) => {
+    if (session.source === "resume") {
+      navigate(`/resume-prep/${session._id}`);
+    } else {
+      navigate(`/interview-prep/${session._id}`);
+    }
   };
 
   useEffect(() => {
@@ -85,8 +89,9 @@ const Dashboard = () => {
                   ? moment(data.updatedAt).format("DD MMM YYYY")
                   : ""
               }
-              onSelect={() => navigate(`/interview-prep/${data?._id}`)}
-              // Pass the whole session object so we can show its name in the dialog
+              source={data?.source}
+              resumeFileName={data?.resumeFileName}
+              onSelect={() => handleSelectSession(data)}
               onDelete={() => handleDeleteClick(data)}
             />
           ))}
@@ -120,19 +125,17 @@ const Dashboard = () => {
         </div>
       </Modal>
 
-      {/* ── Delete confirmation dialog ─────────────────────────────────────── */}
+      {/* Delete confirmation dialog */}
       <Modal
         isOpen={openDeleteAlert.open}
         onClose={handleCancelDelete}
         title="Delete Session"
       >
         <div className="flex flex-col items-center text-center gap-4 py-2">
-          {/* Warning icon */}
           <div className="w-14 h-14 flex items-center justify-center rounded-full bg-red-100 text-red-500">
             <LuTrash2 size={26} />
           </div>
 
-          {/* Message */}
           <div>
             <p className="text-gray-800 font-medium text-base">
               Delete &quot;{openDeleteAlert.data?.role}&quot; session?
@@ -147,7 +150,6 @@ const Dashboard = () => {
             </p>
           </div>
 
-          {/* Actions */}
           <div className="flex gap-3 w-full mt-1">
             <button
               onClick={handleCancelDelete}
@@ -166,7 +168,6 @@ const Dashboard = () => {
           </div>
         </div>
       </Modal>
-      {/* ─────────────────────────────────────────────────────────────────── */}
     </DashboardLayout>
   );
 };
