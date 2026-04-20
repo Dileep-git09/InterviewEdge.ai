@@ -1,19 +1,15 @@
-import React, { useEffect, useRef, useState, useCallback } from "react";
+import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
-  ChevronLeft,
-  FileText,
-  AlertCircle,
-  ChevronDown,
-  Sparkles,
-  Pin,
-  PinOff,
+  ChevronLeft, FileText, AlertCircle,
+  ChevronDown, Sparkles, Pin, PinOff,
 } from "lucide-react";
 import moment from "moment";
 import toast from "react-hot-toast";
 import DashboardLayout from "../../components/Layouts/DashboardLayout";
 import axiosInstance from "../../utils/axiosinstance";
 import { API_PATHS } from "../../utils/apiPaths";
+import AnswerRenderer from "../../components/AnswerRenderer";
 
 // ── Section colour map ────────────────────────────────────────────────────────
 const SECTION_COLORS = {
@@ -29,20 +25,18 @@ const SECTION_COLORS = {
 
 const getSectionColor = (name = "") => {
   const key = name.toLowerCase().trim();
-  return (
-    SECTION_COLORS[key] || {
-      bg: "bg-gray-50",
-      badge: "bg-gray-100 text-gray-700",
-      dot: "bg-gray-400",
-    }
-  );
+  return SECTION_COLORS[key] || {
+    bg: "bg-gray-50",
+    badge: "bg-gray-100 text-gray-700",
+    dot: "bg-gray-400",
+  };
 };
 
 // ── Single collapsible question card ─────────────────────────────────────────
 const QuestionCard = ({ questionDoc, index, onTogglePin }) => {
   const [isExpanded, setIsExpanded] = useState(false);
-  const [height, setHeight] = useState(0);
-  const contentRef = useRef(null);
+  const [height, setHeight]         = useState(0);
+  const contentRef                  = useRef(null);
 
   useEffect(() => {
     if (isExpanded && contentRef.current) {
@@ -71,7 +65,6 @@ const QuestionCard = ({ questionDoc, index, onTogglePin }) => {
         </p>
 
         <div className="flex items-center gap-2 flex-shrink-0">
-          {/* Pin button */}
           <button
             onClick={() => onTogglePin(questionDoc._id)}
             className="text-indigo-400 hover:text-indigo-600 transition-colors"
@@ -80,7 +73,6 @@ const QuestionCard = ({ questionDoc, index, onTogglePin }) => {
             {questionDoc.isPinned ? <PinOff size={14} /> : <Pin size={14} />}
           </button>
 
-          {/* Expand chevron */}
           <button onClick={() => setIsExpanded((p) => !p)}>
             <ChevronDown
               size={16}
@@ -104,9 +96,12 @@ const QuestionCard = ({ questionDoc, index, onTogglePin }) => {
           <span className="text-xs font-bold text-indigo-400 mt-0.5 flex-shrink-0">
             A
           </span>
-          <p className="text-sm text-gray-600 leading-relaxed">
-            {questionDoc.answer}
-          </p>
+          {/* Bug fix: was rendering answer as a plain <p> tag, losing all
+              formatting (bold, lists, code blocks). Now uses AnswerRenderer
+              for consistent formatted output across the whole app. */}
+          <div className="flex-1 text-sm text-gray-600">
+            <AnswerRenderer answer={questionDoc.answer} />
+          </div>
         </div>
       </div>
     </div>
@@ -119,14 +114,10 @@ const SectionBlock = ({ section, questions, onTogglePin }) => {
 
   return (
     <div className="mb-8">
-      <div
-        className={`flex items-center gap-3 px-4 py-3 rounded-xl mb-4 ${color.bg}`}
-      >
+      <div className={`flex items-center gap-3 px-4 py-3 rounded-xl mb-4 ${color.bg}`}>
         <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${color.dot}`} />
         <h3 className="text-base font-semibold text-gray-800">{section}</h3>
-        <span
-          className={`ml-auto text-xs font-semibold px-2.5 py-0.5 rounded-full ${color.badge}`}
-        >
+        <span className={`ml-auto text-xs font-semibold px-2.5 py-0.5 rounded-full ${color.badge}`}>
           {questions.length} question{questions.length !== 1 ? "s" : ""}
         </span>
       </div>
@@ -146,12 +137,11 @@ const SectionBlock = ({ section, questions, onTogglePin }) => {
 // ── ResumePrep page ───────────────────────────────────────────────────────────
 const ResumePrep = () => {
   const { sessionId } = useParams();
-  const navigate = useNavigate();
+  const navigate      = useNavigate();
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [error, setError]     = useState(null);
 
-  // Fetch the session (includes populated questions)
   const fetchSession = useCallback(async () => {
     try {
       setLoading(true);
@@ -161,8 +151,7 @@ const ResumePrep = () => {
       setSession(response.data.session);
     } catch (err) {
       setError(
-        err?.response?.data?.message ||
-          "Failed to load session. Please try again."
+        err?.response?.data?.message || "Failed to load session. Please try again."
       );
     } finally {
       setLoading(false);
@@ -173,18 +162,17 @@ const ResumePrep = () => {
     if (sessionId) fetchSession();
   }, [sessionId, fetchSession]);
 
-  // Toggle pin on a question then refresh
   const handleTogglePin = async (questionId) => {
     try {
       await axiosInstance.post(API_PATHS.QUESTION.PIN(questionId));
-      fetchSession(); // re-fetch so pinned state updates
+      fetchSession();
     } catch {
       toast.error("Failed to update pin. Please try again.");
     }
   };
 
-  // Group questions by their `section` field
-  const groupedSections = React.useMemo(() => {
+  // Group questions by section, pinned first within each section
+  const groupedSections = useMemo(() => {
     if (!session?.questions) return [];
 
     const map = {};
@@ -194,7 +182,6 @@ const ResumePrep = () => {
       map[key].push(q);
     });
 
-    // Sort: pinned questions bubble up within each section
     return Object.entries(map).map(([section, questions]) => ({
       section,
       questions: [...questions].sort(
@@ -205,7 +192,6 @@ const ResumePrep = () => {
 
   const totalQuestions = session?.questions?.length ?? 0;
 
-  // ── Loading state ───────────────────────────────────────────────────────────
   if (loading) {
     return (
       <DashboardLayout>
@@ -223,16 +209,13 @@ const ResumePrep = () => {
     <DashboardLayout>
       <div className="container mx-auto px-4 md:px-8 pt-6 pb-12 max-w-3xl">
 
-        {/* ── Page header ───────────────────────────────────────────────── */}
+        {/* Page header */}
         <div className="mb-6">
           <button
             onClick={() => navigate("/dashboard")}
             className="flex items-center gap-1 text-xs text-gray-400 hover:text-blue-600 mb-4 transition-colors group"
           >
-            <ChevronLeft
-              size={14}
-              className="group-hover:-translate-x-0.5 transition-transform"
-            />
+            <ChevronLeft size={14} className="group-hover:-translate-x-0.5 transition-transform" />
             <span className="font-medium">Back to Dashboard</span>
           </button>
 
@@ -254,20 +237,17 @@ const ResumePrep = () => {
               )}
               {session?.updatedAt && (
                 <p className="text-xs text-gray-400 mt-0.5">
-                  Last updated{" "}
-                  {moment(session.updatedAt).format("Do MMM YYYY")}
+                  Last updated {moment(session.updatedAt).format("Do MMM YYYY")}
                 </p>
               )}
             </div>
           </div>
 
-          {/* Summary strip */}
           {session && (
             <div className="mt-4 flex flex-wrap gap-3">
               <div className="flex items-center gap-1.5 bg-gray-100 rounded-full px-3 py-1 text-xs font-medium text-gray-700">
                 <Sparkles size={12} className="text-blue-500" />
-                {groupedSections.length} section
-                {groupedSections.length !== 1 ? "s" : ""} detected
+                {groupedSections.length} section{groupedSections.length !== 1 ? "s" : ""} detected
               </div>
               <div className="flex items-center gap-1.5 bg-gray-100 rounded-full px-3 py-1 text-xs font-medium text-gray-700">
                 {totalQuestions} questions generated
@@ -276,7 +256,7 @@ const ResumePrep = () => {
           )}
         </div>
 
-        {/* ── Error state ───────────────────────────────────────────────── */}
+        {/* Error state */}
         {error && (
           <div className="flex items-start gap-3 bg-red-50 border border-red-200 rounded-xl px-5 py-4 text-sm text-red-700">
             <AlertCircle size={18} className="flex-shrink-0 mt-0.5" />
@@ -293,7 +273,7 @@ const ResumePrep = () => {
           </div>
         )}
 
-        {/* ── Questions grouped by section ──────────────────────────────── */}
+        {/* Questions grouped by section */}
         {groupedSections.map(({ section, questions }) => (
           <SectionBlock
             key={section}
