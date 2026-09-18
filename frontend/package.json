@@ -3,6 +3,9 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "description": "InterviewEdge frontend — React/Vite UI for AI-powered interview prep, resume-based question generation, and timed mock interviews.",
+  "author": "Dileep Guglavath",
+  "license": "UNLICENSED",
   "scripts": {
     "dev": "vite",
     "build": "vite build",

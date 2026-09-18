@@ -11,7 +11,9 @@ _the rules to follow_.
 
 > Stack: **React 19 + Vite + Tailwind** (frontend) · **Node.js + Express 5 +
 > MongoDB/Mongoose** (backend) · **Redis (Upstash)** cache · **node-cron** jobs ·
-> **Google Gemini 2.5 Flash → Groq (Llama 3.3)** AI with failover.
+> **Google Gemini → Groq** AI with failover (model IDs in `utils/gemini.js` —
+> both providers retire model versions periodically, check there first if AI
+> calls start 404ing).
 
 ---
 
@@ -241,7 +243,10 @@ PinEvents → group by role+question → count unique users
 
 # 7. AI Integration Standards
 
-- **Primary:** Gemini 2.5 Flash (`@google/genai`). **Fallback:** Groq Llama 3.3 (REST).
+- **Primary:** Gemini (`@google/genai`, model ID in `GEMINI_MODEL`). **Fallback:**
+  Groq (REST, model ID in `GROQ_MODEL`) — both constants live in `utils/gemini.js`.
+  Both providers retire model IDs over time; a 404 "model not found"/"no longer
+  available" error means the constant needs bumping to a current model.
 - On rate-limit / quota / outage → automatically fail over to Groq.
 - All AI JSON passes the **4-strategy parser**: direct → strip fences → bracket-depth scan → sanitize.
 - Prompts are **domain-aware**: never assume "software"; only emit code when relevant.

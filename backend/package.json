@@ -1,15 +1,16 @@
 {
-  "name": "backend",
+  "name": "interviewedge-backend",
   "version": "1.0.0",
-  "main": "index.js",
+  "private": true,
+  "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "description": "",
+  "keywords": ["interview-prep", "ai", "express", "mongodb"],
+  "author": "Dileep Guglavath",
+  "license": "UNLICENSED",
+  "description": "InterviewEdge API — AI-powered interview question generation, mock interviews, and community top-questions, backed by Express, MongoDB, and Gemini/Groq.",
   "dependencies": {
     "@google/genai": "^1.9.0",
     "bcryptjs": "^3.0.2",

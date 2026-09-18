@@ -11,6 +11,10 @@ const { redisClient } = require("../config/redis");
 const normaliseRole = (role = "") =>
   role.toLowerCase().trim().replace(/\s+/g, " ");
 
+// Escapes regex metacharacters so a role like "C++ Developer" or "UI/UX (Lead)"
+// can't produce an invalid pattern (e.g. a bare "+") or unintended matching.
+const escapeRegExp = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Cache helpers (Upstash Redis)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -75,7 +79,7 @@ const getTopQuestions = async (req, res) => {
     // ── Layer 3: MongoDB ──────────────────────────────────────────────────
     // Fuzzy role match: find documents whose role contains the query string.
     // This means "frontend developer" also matches "senior frontend developer".
-    const roleRegex = new RegExp(role.split(" ").join("|"), "i");
+    const roleRegex = new RegExp(role.split(" ").map(escapeRegExp).join("|"), "i");
 
     const questions = await TopQuestion.find({
       role: { $regex: roleRegex },

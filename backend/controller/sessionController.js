@@ -14,7 +14,11 @@ exports.createSession = async (req, res) => {
       questions, 
       difficulty = "medium"
      } = req.body;
-      
+
+    if (!Array.isArray(questions)) {
+      return res.status(400).json({ message: "questions must be an array" });
+    }
+
     const userId = req.user._id;
 
     const validDifficulties = ["easy", "medium", "hard"];

@@ -72,14 +72,14 @@ const MockInterview = () => {
 
   // ── Submit the current answer for evaluation ───────────────────────────────
   const submitAnswer = useCallback(
-    async (auto = false) => {
+    async (auto = false, skip = false) => {
       if (submitting || evaluation) return;
       const timeTakenSec = Math.round((Date.now() - questionStartRef.current) / 1000);
       setSubmitting(true);
       try {
         const res = await axiosInstance.post(API_PATHS.MOCK.ANSWER(mockId), {
           questionIndex: current,
-          userAnswer: answer,
+          userAnswer: skip ? "" : answer,
           timeTakenSec,
         });
         setEvaluation(res.data?.evaluation || null);
@@ -231,7 +231,7 @@ const MockInterview = () => {
                   )}
                 </button>
                 <button
-                  onClick={() => submitAnswer(false)}
+                  onClick={() => submitAnswer(false, true)}
                   disabled={submitting}
                   className="sm:w-auto inline-flex items-center justify-center gap-2 py-3 px-5 rounded-xl border border-gray-200 text-gray-600 font-medium hover:bg-gray-50 transition disabled:opacity-60"
                 >
