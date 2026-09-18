@@ -19,6 +19,12 @@ const protect = async (req, res, next) => {
       return res.status(401).json({ message: "Not authorized, user no longer exists" });
     }
 
+    // Token predates a password change or "log out everywhere" request —
+    // reject it even though its signature and expiry are still valid.
+    if ((decoded.tokenVersion || 0) !== user.tokenVersion) {
+      return res.status(401).json({ message: "Session expired, please log in again." });
+    }
+
     req.user = user;
     next();
   } catch (error) {

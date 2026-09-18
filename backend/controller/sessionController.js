@@ -64,15 +64,30 @@ exports.createSession = async (req, res) => {
   }
 };
 
-// @desc    Get all sessions for the logged-in user
-// @route   GET /api/sessions/my-sessions
+// @desc    Get all sessions for the logged-in user, paginated
+// @route   GET /api/sessions/my-sessions?page=&limit=
 // @access  Private
 exports.getMySessions = async (req, res) => {
   try {
-    const sessions = await Session.find({ user: req.user.id })
-      .sort({ createdAt: -1 })
-      .populate("questions");
-    res.status(200).json(sessions);
+    const page  = Math.max(parseInt(req.query.page) || 1, 1);
+    const limit = Math.min(Math.max(parseInt(req.query.limit) || 10, 1), 50);
+
+    const [sessions, total] = await Promise.all([
+      Session.find({ user: req.user.id })
+        .sort({ createdAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .populate("questions"),
+      Session.countDocuments({ user: req.user.id }),
+    ]);
+
+    res.status(200).json({
+      sessions,
+      page,
+      limit,
+      total,
+      totalPages: Math.max(Math.ceil(total / limit), 1),
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: "Server Error" });
   }

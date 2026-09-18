@@ -330,14 +330,28 @@ exports.getMockInterview = async (req, res) => {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// GET /api/mock/my   (Private) — lightweight history list (feeds analytics)
+// GET /api/mock/my?page=&limit=   (Private) — lightweight history list, paginated
+//
+// Max limit is 100 rather than the usual 50 — Analytics needs enough history
+// in one call to compute meaningful trends/averages. This is still a real
+// cap, not unlimited: a user with a genuinely huge history only gets stats
+// over their most recent 100 attempts. A dedicated server-side aggregation
+// endpoint would be the fuller fix if that ever becomes a real constraint.
 // ─────────────────────────────────────────────────────────────────────────────
 exports.getMyMockInterviews = async (req, res) => {
   try {
-    const mocks = await MockInterview.find({ user: req.user._id })
-      .sort({ createdAt: -1 })
-      .select("role difficulty status overallScore totalTimeSec createdAt completedAt questions")
-      .lean();
+    const page  = Math.max(parseInt(req.query.page) || 1, 1);
+    const limit = Math.min(Math.max(parseInt(req.query.limit) || 10, 1), 100);
+
+    const [mocks, total] = await Promise.all([
+      MockInterview.find({ user: req.user._id })
+        .sort({ createdAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .select("role difficulty status overallScore totalTimeSec createdAt completedAt questions")
+        .lean(),
+      MockInterview.countDocuments({ user: req.user._id }),
+    ]);
 
     const list = mocks.map((m) => ({
       _id:          m._id,
@@ -352,7 +366,14 @@ exports.getMyMockInterviews = async (req, res) => {
       completedAt:  m.completedAt,
     }));
 
-    return res.status(200).json({ success: true, mocks: list });
+    return res.status(200).json({
+      success: true,
+      mocks: list,
+      page,
+      limit,
+      total,
+      totalPages: Math.max(Math.ceil(total / limit), 1),
+    });
   } catch (error) {
     console.error("Error listing mock interviews:", error.message);
     return res.status(500).json({ message: "Server Error" });

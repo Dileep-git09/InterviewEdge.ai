@@ -232,12 +232,13 @@ status-code standards, and per-endpoint function references are in
 | POST | `/auth/register` | — | Create an account |
 | POST | `/auth/login` | — | Log in |
 | GET / PUT | `/auth/profile` | ✓ | Get / update profile |
-| PUT | `/auth/change-password` | ✓ | Change password |
+| PUT | `/auth/change-password` | ✓ | Change password — invalidates every other session |
+| POST | `/auth/logout-all` | ✓ | Invalidate every session, including this one |
 | POST | `/ai/generate-questions` | ✓ | Generate role-specific questions |
 | POST | `/ai/generate-explanation` | ✓ | Explain a concept |
 | POST | `/ai/generate-from-resume` | ✓ | Generate questions from an uploaded resume |
 | POST | `/sessions/create` | ✓ | Create a prep session |
-| GET | `/sessions/my-sessions` | ✓ | List your sessions |
+| GET | `/sessions/my-sessions?page=&limit=` | ✓ | List your sessions, paginated (max `limit` 50) |
 | GET / DELETE | `/sessions/:id` | ✓ | Get / delete a session |
 | POST | `/questions/add` | ✓ | Add questions to a session |
 | POST | `/questions/:id/pin` | ✓ | Pin/unpin a question |
@@ -245,7 +246,7 @@ status-code standards, and per-endpoint function references are in
 | GET | `/top-questions?role=&limit=` | — | Community top questions for a role |
 | POST | `/mock/start` | ✓ | Start a mock interview |
 | GET | `/mock/:id` | ✓ | Fetch a mock attempt |
-| GET | `/mock/my` | ✓ | List your mock attempts |
+| GET | `/mock/my?page=&limit=` | ✓ | List your mock attempts, paginated (max `limit` 100) |
 | POST | `/mock/:id/answer` | ✓ | Submit + AI-grade one answer |
 | POST | `/mock/:id/complete` | ✓ | Finish and get the overall debrief |
 | DELETE | `/mock/:id` | ✓ | Delete a mock attempt |

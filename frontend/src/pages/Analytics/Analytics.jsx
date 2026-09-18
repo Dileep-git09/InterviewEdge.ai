@@ -84,7 +84,9 @@ const Analytics = () => {
   useEffect(() => {
     (async () => {
       try {
-        const res = await axiosInstance.get(API_PATHS.MOCK.MY);
+        // Analytics needs as much history as possible to be meaningful — 100
+        // is the API's max page size, not a true "everything" guarantee.
+        const res = await axiosInstance.get(API_PATHS.MOCK.MY(1, 100));
         setMocks(res.data?.mocks || []);
       } catch {
         // leave empty

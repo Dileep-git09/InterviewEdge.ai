@@ -8,6 +8,7 @@ export const API_PATHS = {
     GET_PROFILE:     "/api/auth/profile",
     UPDATE_PROFILE:  "/api/auth/profile",       // PUT — update name & email
     CHANGE_PASSWORD: "/api/auth/change-password", // PUT — change password
+    LOGOUT_ALL:      "/api/auth/logout-all",     // POST — invalidate every issued token
   },
   IMAGE: {
     UPLOAD_IMAGE: "/api/upload-image",
@@ -19,7 +20,7 @@ export const API_PATHS = {
   },
   SESSION: {
     CREATE:  "/api/sessions/create",
-    GET_ALL: "/api/sessions/my-sessions",
+    GET_ALL: (page = 1, limit = 12) => `/api/sessions/my-sessions?page=${page}&limit=${limit}`,
     GET_ONE: (id) => `/api/sessions/${id}`,
     DELETE:  (id) => `/api/sessions/${id}`,
   },
@@ -34,7 +35,7 @@ export const API_PATHS = {
   },
   MOCK: {
     START:    "/api/mock/start",
-    MY:       "/api/mock/my",
+    MY:       (page = 1, limit = 10) => `/api/mock/my?page=${page}&limit=${limit}`,
     GET_ONE:  (id) => `/api/mock/${id}`,
     ANSWER:   (id) => `/api/mock/${id}/answer`,
     COMPLETE: (id) => `/api/mock/${id}/complete`,
