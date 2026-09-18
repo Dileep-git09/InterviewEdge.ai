@@ -18,10 +18,15 @@ const { GoogleGenAI } = require("@google/genai");
 
 // ── Gemini client ─────────────────────────────────────────────────────────────
 const geminiAI    = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-const GEMINI_MODEL = "gemini-2.5-flash"; // free tier: 15 RPM / 1,500 RPD
+// gemini-2.5-flash was retired by Google (API now 404s: "no longer available
+// to new users, use gemini-3.6-flash") — confirmed live against the API.
+const GEMINI_MODEL = "gemini-3.6-flash";
 
 // ── Groq client (OpenAI-compatible REST) ──────────────────────────────────────
-const GROQ_MODEL   = "llama-3.3-70b-versatile"; // free tier: 30 RPM / 1,000 RPD
+// llama-3.3-70b-versatile was retired from Groq's lineup (404s "does not
+// exist"). Confirmed openai/gpt-oss-120b is live, follows plain-JSON
+// instructions cleanly, and needs no markdown-fence stripping.
+const GROQ_MODEL   = "openai/gpt-oss-120b";
 const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
 
 // ── 4-strategy JSON cascade ───────────────────────────────────────────────────
