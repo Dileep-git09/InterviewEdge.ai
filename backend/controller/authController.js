@@ -3,8 +3,10 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 
 // ── Generate JWT ──────────────────────────────────────────────────────────────
-const generateToken = (userId) =>
-  jwt.sign({ id: userId }, process.env.JWT_SECRET, { expiresIn: "7d" });
+// tokenVersion is embedded so it can be invalidated server-side without a
+// blacklist — see `protect` in authMiddleware.js and `logoutAllDevices` below.
+const generateToken = (userId, tokenVersion = 0) =>
+  jwt.sign({ id: userId, tokenVersion }, process.env.JWT_SECRET, { expiresIn: "7d" });
 
 // ── @route  POST /api/auth/register ──────────────────────────────────────────
 const registerUser = async (req, res) => {
@@ -36,7 +38,7 @@ const registerUser = async (req, res) => {
       _id: user._id,
       name: user.name,
       email: user.email,
-      token: generateToken(user._id),
+      token: generateToken(user._id, user.tokenVersion),
     });
   } catch (error) {
     console.error("Registration error:", error.message);
@@ -63,7 +65,7 @@ const loginUser = async (req, res) => {
       _id: user._id,
       name: user.name,
       email: user.email,
-      token: generateToken(user._id),
+      token: generateToken(user._id, user.tokenVersion),
     });
   } catch (error) {
     console.error("Login error:", error.message);
@@ -147,14 +149,37 @@ const changePassword = async (req, res) => {
       return res.status(401).json({ message: "Current password is incorrect." });
     }
 
-    // Hash and save new password
+    // Hash and save new password. Bump tokenVersion so every other
+    // already-issued token (anyone who had this password, e.g. on another
+    // device) is invalidated immediately — the standard "changing your
+    // password logs out other sessions" behavior.
     const salt = await bcrypt.genSalt(10);
     user.password = await bcrypt.hash(newPassword, salt);
+    user.tokenVersion += 1;
     await user.save();
 
-    res.json({ message: "Password changed successfully." });
+    // Issue a fresh token for *this* request's session so the user isn't
+    // immediately logged out of the tab they just changed their password in.
+    res.json({
+      message: "Password changed successfully.",
+      token: generateToken(user._id, user.tokenVersion),
+    });
   } catch (error) {
     console.error("changePassword error:", error.message);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+// ── @route  POST /api/auth/logout-all ────────────────────────────────────────
+// Invalidates every token currently issued to this user, including the one
+// used to make this request — bumping tokenVersion is what "log out
+// everywhere" means here, since there's no server-side token blacklist.
+const logoutAllDevices = async (req, res) => {
+  try {
+    await User.findByIdAndUpdate(req.user.id, { $inc: { tokenVersion: 1 } });
+    res.json({ message: "Logged out of all devices. Please log in again." });
+  } catch (error) {
+    console.error("logoutAllDevices error:", error.message);
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };
@@ -165,4 +190,5 @@ module.exports = {
   getUserProfile,
   updateUserProfile,
   changePassword,
+  logoutAllDevices,
 };

@@ -47,26 +47,57 @@ const Dashboard = () => {
   const { user } = useContext(UserContext);
 
   const [sessions, setSessions] = useState([]);
+  const [sessionsPage, setSessionsPage] = useState(1);
+  const [sessionsTotal, setSessionsTotal] = useState(0);
+  const [sessionsHasMore, setSessionsHasMore] = useState(false);
+  const [loadingMoreSessions, setLoadingMoreSessions] = useState(false);
   const [mocks, setMocks] = useState([]);
+  const [mocksTotal, setMocksTotal] = useState(0);
   const [openCreateModal, setOpenCreateModal] = useState(false);
   const [openMockModal, setOpenMockModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [openDeleteAlert, setOpenDeleteAlert] = useState({ open: false, data: null });
 
+  const SESSIONS_PAGE_SIZE = 12;
+
+  // Replaces the session list — used for the initial load and after a delete.
   const fetchAllSessions = async () => {
     try {
-      const res = await axiosInstance.get(API_PATHS.SESSION.GET_ALL);
-      setSessions(res.data || []);
+      const res = await axiosInstance.get(API_PATHS.SESSION.GET_ALL(1, SESSIONS_PAGE_SIZE));
+      setSessions(res.data?.sessions || []);
+      setSessionsTotal(res.data?.total ?? 0);
+      setSessionsPage(1);
+      setSessionsHasMore((res.data?.totalPages ?? 1) > 1);
     } catch (error) {
       console.error("Error fetching sessions:", error);
       toast.error("Failed to fetch sessions.");
     }
   };
 
+  // Appends the next page — used by the "Load more" button.
+  const loadMoreSessions = async () => {
+    const nextPage = sessionsPage + 1;
+    setLoadingMoreSessions(true);
+    try {
+      const res = await axiosInstance.get(API_PATHS.SESSION.GET_ALL(nextPage, SESSIONS_PAGE_SIZE));
+      setSessions((prev) => [...prev, ...(res.data?.sessions || [])]);
+      setSessionsPage(nextPage);
+      setSessionsHasMore(nextPage < (res.data?.totalPages ?? 1));
+    } catch (error) {
+      console.error("Error loading more sessions:", error);
+      toast.error("Failed to load more sessions.");
+    } finally {
+      setLoadingMoreSessions(false);
+    }
+  };
+
   const fetchMocks = async () => {
     try {
-      const res = await axiosInstance.get(API_PATHS.MOCK.MY);
+      // Only the 5 most recent are ever shown here — this page doesn't need
+      // the full history, just enough to fill that list.
+      const res = await axiosInstance.get(API_PATHS.MOCK.MY(1, 10));
       setMocks(res.data?.mocks || []);
+      setMocksTotal(res.data?.total ?? 0);
     } catch (error) {
       // Non-fatal: mock history just won't show
       console.error("Error fetching mock history:", error);
@@ -79,6 +110,9 @@ const Dashboard = () => {
   }, []);
 
   const stats = useMemo(() => {
+    // totalQuestions/streak are only computed over the currently-loaded page
+    // of sessions (a reasonable approximation — the alternative is summing
+    // across every page on every load, which defeats the point of paginating).
     const totalQuestions = sessions.reduce((a, s) => a + (s.questions?.length || 0), 0);
     const completed = mocks.filter((m) => m.status === "completed" && typeof m.overallScore === "number");
     const avg = completed.length
@@ -88,8 +122,8 @@ const Dashboard = () => {
       ...mocks.map((m) => m.completedAt || m.createdAt),
       ...sessions.map((s) => s.updatedAt),
     ]);
-    return { totalQuestions, avg, attempts: mocks.length, streak };
-  }, [sessions, mocks]);
+    return { totalQuestions, avg, attempts: mocksTotal, streak };
+  }, [sessions, mocks, mocksTotal]);
 
   const handleConfirmDelete = async () => {
     if (!openDeleteAlert.data) return;
@@ -132,7 +166,7 @@ const Dashboard = () => {
 
         {/* Stats */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard icon={<LuClipboardList size={22} />} tone="indigo" value={sessions.length} label="Sessions" />
+          <StatCard icon={<LuClipboardList size={22} />} tone="indigo" value={sessionsTotal} label="Sessions" />
           <StatCard icon={<LuLayers size={22} />} tone="violet" value={stats.totalQuestions} label="Questions" />
           <StatCard icon={<LuTarget size={22} />} tone="emerald" value={stats.attempts} label="Mock attempts" />
           <StatCard icon={<LuFlame size={22} />} tone="amber" value={`${stats.streak}d`} label="Current streak"
@@ -183,24 +217,37 @@ const Dashboard = () => {
                 </Button>
               </Card>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {sessions.map((data, index) => (
-                  <SummaryCard
-                    key={data?._id}
-                    colors={CARD_BG[index % CARD_BG.length]}
-                    role={data?.role || ""}
-                    topicsToFocus={data?.topicsToFocus || ""}
-                    experience={data?.experience || "-"}
-                    questions={data?.questions?.length || "-"}
-                    description={data?.description || ""}
-                    lastUpdated={data?.updatedAt ? moment(data.updatedAt).format("DD MMM YYYY") : ""}
-                    source={data?.source}
-                    resumeFileName={data?.resumeFileName}
-                    onSelect={() => handleSelectSession(data)}
-                    onDelete={() => setOpenDeleteAlert({ open: true, data })}
-                  />
-                ))}
-              </div>
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {sessions.map((data, index) => (
+                    <SummaryCard
+                      key={data?._id}
+                      colors={CARD_BG[index % CARD_BG.length]}
+                      role={data?.role || ""}
+                      topicsToFocus={data?.topicsToFocus || ""}
+                      experience={data?.experience || "-"}
+                      questions={data?.questions?.length || "-"}
+                      description={data?.description || ""}
+                      lastUpdated={data?.updatedAt ? moment(data.updatedAt).format("DD MMM YYYY") : ""}
+                      source={data?.source}
+                      resumeFileName={data?.resumeFileName}
+                      onSelect={() => handleSelectSession(data)}
+                      onDelete={() => setOpenDeleteAlert({ open: true, data })}
+                    />
+                  ))}
+                </div>
+                {sessionsHasMore && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="mx-auto"
+                    disabled={loadingMoreSessions}
+                    onClick={loadMoreSessions}
+                  >
+                    {loadingMoreSessions ? "Loading…" : `Load more (${sessions.length} of ${sessionsTotal})`}
+                  </Button>
+                )}
+              </>
             )}
           </div>
 

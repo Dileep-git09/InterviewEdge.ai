@@ -8,26 +8,50 @@ import { API_PATHS } from "../../utils/apiPaths";
 import MockSetupForm from "./MockSetupForm";
 import { Card, SectionHeading } from "../../components/ui/primitives";
 import Badge from "../../components/ui/Badge";
+import Button from "../../components/ui/Button";
 
 const scoreColor = (s) =>
   s >= 80 ? "text-emerald-600 border-emerald-500"
     : s >= 60 ? "text-amber-600 border-amber-500"
     : "text-rose-600 border-rose-500";
 
+const PAGE_SIZE = 10;
+
 const MockStart = () => {
   const navigate = useNavigate();
   const [mocks, setMocks] = useState([]);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   useEffect(() => {
     (async () => {
       try {
-        const res = await axiosInstance.get(API_PATHS.MOCK.MY);
+        const res = await axiosInstance.get(API_PATHS.MOCK.MY(1, PAGE_SIZE));
         setMocks(res.data?.mocks || []);
+        setTotal(res.data?.total ?? 0);
+        setHasMore((res.data?.totalPages ?? 1) > 1);
       } catch {
         /* non-fatal */
       }
     })();
   }, []);
+
+  const loadMore = async () => {
+    const nextPage = page + 1;
+    setLoadingMore(true);
+    try {
+      const res = await axiosInstance.get(API_PATHS.MOCK.MY(nextPage, PAGE_SIZE));
+      setMocks((prev) => [...prev, ...(res.data?.mocks || [])]);
+      setPage(nextPage);
+      setHasMore(nextPage < (res.data?.totalPages ?? 1));
+    } catch {
+      /* non-fatal */
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   return (
     <DashboardLayout title="Mock Interview" subtitle="Timed, AI-scored practice">
@@ -70,6 +94,17 @@ const MockStart = () => {
                 </li>
               ))}
             </ul>
+          )}
+          {hasMore && (
+            <Button
+              variant="secondary"
+              size="sm"
+              className="mx-auto mt-4"
+              disabled={loadingMore}
+              onClick={loadMore}
+            >
+              {loadingMore ? "Loading…" : `Load more (${mocks.length} of ${total})`}
+            </Button>
           )}
         </Card>
       </div>

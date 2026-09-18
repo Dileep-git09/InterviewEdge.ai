@@ -107,7 +107,11 @@ Route → Middleware → Controller → Service / Utils → Model (Mongoose) →
 ## Response Conventions (current)
 
 - **Auth:** `{ _id, name, email, token }`
-- **Collections:** raw array (e.g. `GET /sessions/my-sessions`)
+- **Paginated collections:** `{ <resourceKey>, page, limit, total, totalPages }`
+  (e.g. `GET /sessions/my-sessions` → `{ sessions, page, limit, total, totalPages }`,
+  `GET /mock/my` → `{ success, mocks, page, limit, total, totalPages }`).
+  Query params: `?page=` (default 1), `?limit=` (default 10, capped per-route —
+  50 for sessions, 100 for mock history since Analytics needs more headroom).
 - **Single resource / actions:** `{ success: true, <resource> }` or `{ message }`
 - **Errors (via `errorHandler`):** `{ success: false, message, stack? }`
   _(stack only outside production)_
@@ -147,14 +151,21 @@ Route → Middleware → Controller → Service / Utils → Model (Mongoose) →
 
 ## Auth (`authController.js`)
 
-- `generateToken(userId)` — signs a 7-day JWT.
+- `generateToken(userId, tokenVersion)` — signs a 7-day JWT embedding `tokenVersion`.
 - `registerUser` — validates input, hashes password, creates user → **201**.
 - `loginUser` — validates credentials (same message for unknown user / wrong password → no enumeration).
-- `getUserProfile` / `updateUserProfile` / `changePassword` — profile self-service; email-uniqueness and current-password checks.
+- `getUserProfile` / `updateUserProfile` — profile self-service; email-uniqueness check.
+- `changePassword` — verifies current password, bumps `user.tokenVersion` (invalidating
+  every other previously-issued token), returns a fresh token for the requesting session.
+- `logoutAllDevices` — bumps `tokenVersion` without touching the password; the
+  explicit "log out everywhere" action, including invalidating the very token
+  used to call it.
 
 ## Sessions (`sessionController.js`)
 
-- `createSession` (**201**), `getMySessions`, `getSessionById` (**403** if not owner), `deleteSession` (**403** if not owner).
+- `createSession` (**201**, requires `questions` to be an array), `getMySessions`
+  (paginated — see § 3), `getSessionById` (**403** if not owner), `deleteSession`
+  (**403** if not owner).
 
 ## Questions (`questionController.js`)
 
@@ -162,7 +173,7 @@ Route → Middleware → Controller → Service / Utils → Model (Mongoose) →
 
 ## Mock Interview (`mockInterviewController.js`)
 
-- `startMockInterview` (**201**), `submitAnswer` (AI-scored), `completeMockInterview` (debrief), `getMockInterview`, `getMyMockInterviews`, `deleteMockInterview`.
+- `startMockInterview` (**201**), `submitAnswer` (AI-scored), `completeMockInterview` (debrief), `getMockInterview`, `getMyMockInterviews` (paginated — see § 3), `deleteMockInterview`.
 - `isValidId()` guards every id route → clean **404** on bad ObjectId.
 - Ideal answers are withheld from the client until a question is answered.
 
@@ -272,6 +283,13 @@ PinEvents → group by role+question → count unique users
 
 - `protect` verifies the JWT and loads `req.user`; rejects tokens for **deleted users** (401).
 - **Ownership checks** on every session/question/mock → **403** on cross-account access (IDOR protection).
+- **Token revocation:** JWTs are stateless (no blacklist), so revocation works via
+  a `tokenVersion` counter on `User` embedded in every signed token. `protect`
+  rejects any token whose `tokenVersion` doesn't match the user's current value
+  — even if the signature and expiry are still valid. Bumped by
+  `changePassword` (invalidates every other session) and `logoutAllDevices`
+  (`POST /api/auth/logout-all` — invalidates every session, including the
+  one that called it).
 
 ## Rate Limiting
 

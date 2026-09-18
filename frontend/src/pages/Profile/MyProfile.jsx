@@ -1,5 +1,6 @@
 import React, { useState, useContext } from "react";
-import { LuUser, LuMail, LuLock, LuCheck, LuLoader, LuEye, LuEyeOff } from "react-icons/lu";
+import { useNavigate } from "react-router-dom";
+import { LuUser, LuMail, LuLock, LuCheck, LuLoader, LuEye, LuEyeOff, LuLogOut } from "react-icons/lu";
 import toast from "react-hot-toast";
 import DashboardLayout from "../../components/Layouts/DashboardLayout";
 import axiosInstance from "../../utils/axiosinstance";
@@ -52,7 +53,8 @@ const Section = ({ title, subtitle, children }) => (
 
 // ── Main page ────────────────────────────────────────────────────────────────
 const MyProfile = () => {
-  const { user, updateUser } = useContext(UserContext);
+  const { user, updateUser, clearUser } = useContext(UserContext);
+  const navigate = useNavigate();
 
   // ── Info section state ────────────────────────────────────────────────────
   const [name, setName]   = useState(user?.name  || "");
@@ -69,6 +71,9 @@ const MyProfile = () => {
   const [showConfirm, setShowConfirm]             = useState(false);
   const [passLoading, setPassLoading]             = useState(false);
   const [passError, setPassError]                 = useState(null);
+
+  // ── Security section state ────────────────────────────────────────────────
+  const [loggingOutAll, setLoggingOutAll]         = useState(false);
 
   const avatarLetter = (name || user?.name || "U")[0].toUpperCase();
 
@@ -110,10 +115,14 @@ const MyProfile = () => {
 
     setPassLoading(true);
     try {
-      await axiosInstance.put(API_PATHS.AUTH.CHANGE_PASSWORD, {
+      const res = await axiosInstance.put(API_PATHS.AUTH.CHANGE_PASSWORD, {
         currentPassword,
         newPassword,
       });
+      // Changing the password invalidates every previously-issued token
+      // (including the one this request used) — store the fresh one the
+      // server just issued so this tab stays logged in.
+      if (res.data?.token) updateUser({ ...user, token: res.data.token });
       toast.success("Password changed successfully!");
       setCurrentPassword("");
       setNewPassword("");
@@ -122,6 +131,20 @@ const MyProfile = () => {
       setPassError(err.response?.data?.message || "Failed to change password.");
     } finally {
       setPassLoading(false);
+    }
+  };
+
+  // ── Log out of every device ───────────────────────────────────────────────
+  const handleLogoutAll = async () => {
+    setLoggingOutAll(true);
+    try {
+      await axiosInstance.post(API_PATHS.AUTH.LOGOUT_ALL);
+      toast.success("Logged out of all devices.");
+      clearUser();
+      navigate("/login");
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to log out of all devices.");
+      setLoggingOutAll(false);
     }
   };
 
@@ -266,6 +289,27 @@ const MyProfile = () => {
               </button>
             </div>
           </form>
+        </Section>
+
+        {/* ── Security section ── */}
+        <Section title="Security" subtitle="Signed in on a device you don't recognize? End every session at once.">
+          <div className="flex items-center justify-between gap-4">
+            <p className="text-xs text-slate-400">
+              This logs you out here too — you'll need to log in again afterward.
+            </p>
+            <button
+              type="button"
+              onClick={handleLogoutAll}
+              disabled={loggingOutAll}
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-rose-600 bg-rose-50 rounded-xl hover:bg-rose-100 disabled:opacity-60 transition flex-shrink-0"
+            >
+              {loggingOutAll ? (
+                <><LuLoader size={14} className="animate-spin" /> Logging out…</>
+              ) : (
+                <><LuLogOut size={14} /> Log out of all devices</>
+              )}
+            </button>
+          </div>
         </Section>
 
       </div>
