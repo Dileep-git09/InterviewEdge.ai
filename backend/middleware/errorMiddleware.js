@@ -8,6 +8,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 const { MulterError } = require("multer");
+const monitoring = require("../utils/monitoring");
 
 // 404 — route not matched. Mounted AFTER all routes.
 const notFound = (req, res, next) => {
@@ -51,6 +52,7 @@ const errorHandler = (err, req, res, next) => {
 
   if (status >= 500) {
     console.error(`[ERROR] ${req.method} ${req.originalUrl}:`, err.message);
+    monitoring.captureException(err);
   }
 
   res.status(status).json({

@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend:
+    name: Backend — tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npm test
+        env:
+          # mongodb-memory-server provides the actual test database — no real
+          # Atlas/Redis/AI credentials are used or needed in CI.
+          CI: true
+
+  frontend:
+    name: Frontend — lint & build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      # frontend/package-lock.json is gitignored (unlike backend's), so there's
+      # no lockfile for `npm ci` or setup-node's cache to key off — plain
+      # install instead.
+      - run: npm install
+      - run: npm run lint
+      - run: npm run build

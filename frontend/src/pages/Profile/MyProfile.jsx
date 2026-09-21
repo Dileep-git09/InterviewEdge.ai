@@ -1,8 +1,9 @@
 import React, { useState, useContext } from "react";
 import { useNavigate } from "react-router-dom";
-import { LuUser, LuMail, LuLock, LuCheck, LuLoader, LuEye, LuEyeOff, LuLogOut } from "react-icons/lu";
+import { LuUser, LuMail, LuLock, LuCheck, LuLoader, LuEye, LuEyeOff, LuLogOut, LuDownload, LuTrash2 } from "react-icons/lu";
 import toast from "react-hot-toast";
 import DashboardLayout from "../../components/Layouts/DashboardLayout";
+import Modal from "../../components/Modal";
 import axiosInstance from "../../utils/axiosinstance";
 import { API_PATHS } from "../../utils/apiPaths";
 import { UserContext } from "../../context/userContext";
@@ -74,6 +75,13 @@ const MyProfile = () => {
 
   // ── Security section state ────────────────────────────────────────────────
   const [loggingOutAll, setLoggingOutAll]         = useState(false);
+  const [exporting, setExporting]                 = useState(false);
+
+  // ── Danger zone state ─────────────────────────────────────────────────────
+  const [deleteModalOpen, setDeleteModalOpen]     = useState(false);
+  const [deletePassword, setDeletePassword]       = useState("");
+  const [deleteError, setDeleteError]             = useState(null);
+  const [deleting, setDeleting]                   = useState(false);
 
   const avatarLetter = (name || user?.name || "U")[0].toUpperCase();
 
@@ -145,6 +153,45 @@ const MyProfile = () => {
     } catch (err) {
       toast.error(err.response?.data?.message || "Failed to log out of all devices.");
       setLoggingOutAll(false);
+    }
+  };
+
+  // ── Download all my data ──────────────────────────────────────────────────
+  const handleExportData = async () => {
+    setExporting(true);
+    try {
+      const res = await axiosInstance.get(API_PATHS.AUTH.EXPORT_DATA, { responseType: "blob" });
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "interviewedge-data-export.json";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success("Your data export has started downloading.");
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to export your data.");
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  // ── Permanently delete account ────────────────────────────────────────────
+  const handleDeleteAccount = async (e) => {
+    e.preventDefault();
+    if (!deletePassword) { setDeleteError("Enter your password to confirm."); return; }
+
+    setDeleteError(null);
+    setDeleting(true);
+    try {
+      await axiosInstance.delete(API_PATHS.AUTH.DELETE_ACCOUNT, { data: { password: deletePassword } });
+      toast.success("Your account has been deleted.");
+      clearUser();
+      navigate("/");
+    } catch (err) {
+      setDeleteError(err.response?.data?.message || "Failed to delete account.");
+      setDeleting(false);
     }
   };
 
@@ -312,7 +359,90 @@ const MyProfile = () => {
           </div>
         </Section>
 
+        {/* ── Your data ── */}
+        <Section title="Your Data" subtitle="Download everything InterviewEdge has stored about you.">
+          <div className="flex items-center justify-between gap-4">
+            <p className="text-xs text-slate-400">
+              Profile, sessions, questions, and mock interview history as one JSON file.
+            </p>
+            <button
+              type="button"
+              onClick={handleExportData}
+              disabled={exporting}
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl hover:border-indigo-300 hover:text-indigo-700 disabled:opacity-60 transition flex-shrink-0"
+            >
+              {exporting ? (
+                <><LuLoader size={14} className="animate-spin" /> Preparing…</>
+              ) : (
+                <><LuDownload size={14} /> Download my data</>
+              )}
+            </button>
+          </div>
+        </Section>
+
+        {/* ── Danger zone ── */}
+        <Section title="Danger Zone" subtitle="This cannot be undone.">
+          <div className="flex items-center justify-between gap-4">
+            <p className="text-xs text-slate-400">
+              Permanently deletes your account, sessions, questions, and mock interview history.
+            </p>
+            <button
+              type="button"
+              onClick={() => setDeleteModalOpen(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-rose-600 rounded-xl hover:bg-rose-700 transition flex-shrink-0"
+            >
+              <LuTrash2 size={14} /> Delete account
+            </button>
+          </div>
+        </Section>
+
       </div>
+
+      {/* ── Delete account confirmation ── */}
+      <Modal
+        isOpen={deleteModalOpen}
+        onClose={() => { setDeleteModalOpen(false); setDeletePassword(""); setDeleteError(null); }}
+        title="Delete your account?"
+      >
+        <p className="text-sm text-slate-500 mb-4">
+          This permanently deletes your account and every session, question, and mock interview
+          you've created. This can't be undone. Enter your password to confirm.
+        </p>
+        <form onSubmit={handleDeleteAccount} className="space-y-3">
+          <Field
+            label="Password"
+            icon={LuLock}
+            value={deletePassword}
+            onChange={(e) => setDeletePassword(e.target.value)}
+            placeholder="Your current password"
+          />
+          {deleteError && (
+            <p className="text-xs text-rose-500 bg-rose-50 border border-rose-100 rounded-lg px-3 py-2">
+              {deleteError}
+            </p>
+          )}
+          <div className="flex justify-end gap-2 pt-1">
+            <button
+              type="button"
+              onClick={() => { setDeleteModalOpen(false); setDeletePassword(""); setDeleteError(null); }}
+              className="px-4 py-2 text-sm font-semibold text-slate-600 hover:text-slate-900 transition"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={deleting}
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-rose-600 rounded-xl hover:bg-rose-700 disabled:opacity-60 transition"
+            >
+              {deleting ? (
+                <><LuLoader size={14} className="animate-spin" /> Deleting…</>
+              ) : (
+                "Permanently delete"
+              )}
+            </button>
+          </div>
+        </form>
+      </Modal>
     </DashboardLayout>
   );
 };

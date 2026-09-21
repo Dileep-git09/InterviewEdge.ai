@@ -1,6 +1,12 @@
+const crypto = require("crypto");
 const User = require("../models/User");
+const Session = require("../models/Session");
+const Question = require("../models/Question");
+const MockInterview = require("../models/MockInterview");
+const PinEvent = require("../models/PinEvent");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const { sendEmail } = require("../utils/email");
 
 // ── Generate JWT ──────────────────────────────────────────────────────────────
 // tokenVersion is embedded so it can be invalidated server-side without a
@@ -184,6 +190,142 @@ const logoutAllDevices = async (req, res) => {
   }
 };
 
+// ── @route  POST /api/auth/forgot-password ───────────────────────────────────
+// Always responds with the same generic message regardless of whether the
+// email exists — an enumeration-safe pattern, same as loginUser.
+const RESET_TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hour
+const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email || !email.trim()) {
+      return res.status(400).json({ message: "Email is required." });
+    }
+
+    const genericMessage = "If an account with that email exists, a password reset link has been sent.";
+    const user = await User.findOne({ email: email.trim().toLowerCase() });
+
+    if (user) {
+      // Raw token goes in the email link; only its hash is ever stored, so a
+      // DB leak can't be used to reset anyone's password.
+      const rawToken = crypto.randomBytes(32).toString("hex");
+      user.resetPasswordTokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
+      user.resetPasswordExpires = new Date(Date.now() + RESET_TOKEN_TTL_MS);
+      await user.save();
+
+      const resetUrl = `${process.env.FRONTEND_URL?.split(",")[0] || "http://localhost:5173"}/reset-password/${rawToken}`;
+      await sendEmail({
+        to: user.email,
+        subject: "Reset your InterviewEdge password",
+        text: `Reset your password: ${resetUrl}\n\nThis link expires in 1 hour. If you didn't request this, ignore this email.`,
+        html: `<p>Reset your password: <a href="${resetUrl}">${resetUrl}</a></p><p>This link expires in 1 hour. If you didn't request this, ignore this email.</p>`,
+      });
+    }
+
+    res.status(200).json({ message: genericMessage });
+  } catch (error) {
+    console.error("forgotPassword error:", error.message);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+// ── @route  POST /api/auth/reset-password/:token ─────────────────────────────
+const resetPassword = async (req, res) => {
+  try {
+    const { token } = req.params;
+    const { newPassword } = req.body;
+
+    if (!newPassword || newPassword.length < 6) {
+      return res.status(400).json({ message: "New password must be at least 6 characters." });
+    }
+
+    const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+    const user = await User.findOne({
+      resetPasswordTokenHash: tokenHash,
+      resetPasswordExpires: { $gt: new Date() },
+    }).select("+resetPasswordTokenHash +resetPasswordExpires");
+
+    if (!user) {
+      return res.status(400).json({ message: "This reset link is invalid or has expired." });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    user.password = await bcrypt.hash(newPassword, salt);
+    user.resetPasswordTokenHash = null;
+    user.resetPasswordExpires = null;
+    user.tokenVersion += 1; // invalidate every existing session, same as changePassword
+    await user.save();
+
+    res.status(200).json({
+      message: "Password reset successfully. You're now logged in.",
+      token: generateToken(user._id, user.tokenVersion),
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+    });
+  } catch (error) {
+    console.error("resetPassword error:", error.message);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+// ── @route  GET /api/auth/export ─────────────────────────────────────────────
+// Everything the app knows about this user, as one JSON download.
+const exportUserData = async (req, res) => {
+  try {
+    const [user, sessions, mocks, pinEvents] = await Promise.all([
+      User.findById(req.user.id).select("-password"),
+      Session.find({ user: req.user.id }).populate("questions").lean(),
+      MockInterview.find({ user: req.user.id }).lean(),
+      PinEvent.find({ user: req.user.id }).lean(),
+    ]);
+
+    if (!user) return res.status(404).json({ message: "User not found." });
+
+    res.set("Content-Disposition", "attachment; filename=interviewedge-data-export.json");
+    res.status(200).json({
+      exportedAt: new Date().toISOString(),
+      profile: user,
+      sessions,
+      mockInterviews: mocks,
+      pinEvents,
+    });
+  } catch (error) {
+    console.error("exportUserData error:", error.message);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+// ── @route  DELETE /api/auth/account ─────────────────────────────────────────
+// Permanently deletes the account and every record owned by it. Requires the
+// current password as confirmation — a valid-but-stolen session token alone
+// shouldn't be enough to destroy the account.
+const deleteAccount = async (req, res) => {
+  try {
+    const { password } = req.body;
+    if (!password) {
+      return res.status(400).json({ message: "Enter your password to confirm account deletion." });
+    }
+
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ message: "User not found." });
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) return res.status(401).json({ message: "Incorrect password." });
+
+    const sessions = await Session.find({ user: user._id }).select("_id");
+    await Question.deleteMany({ session: { $in: sessions.map((s) => s._id) } });
+    await Session.deleteMany({ user: user._id });
+    await MockInterview.deleteMany({ user: user._id });
+    await PinEvent.deleteMany({ user: user._id });
+    await User.deleteOne({ _id: user._id });
+
+    res.status(200).json({ message: "Your account and all associated data have been deleted." });
+  } catch (error) {
+    console.error("deleteAccount error:", error.message);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
 module.exports = {
   registerUser,
   loginUser,
@@ -191,4 +333,8 @@ module.exports = {
   updateUserProfile,
   changePassword,
   logoutAllDevices,
+  forgotPassword,
+  resetPassword,
+  exportUserData,
+  deleteAccount,
 };

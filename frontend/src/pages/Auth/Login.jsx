@@ -73,7 +73,12 @@ const Login = () => {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1.5">Password</label>
+          <div className="flex items-center justify-between mb-1.5">
+            <label className="block text-sm font-medium text-slate-700">Password</label>
+            <Link to="/forgot-password" className="text-xs font-semibold text-indigo-600 hover:underline">
+              Forgot password?
+            </Link>
+          </div>
           <div className="relative">
             <LuLock size={17} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input

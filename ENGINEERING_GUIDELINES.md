@@ -67,7 +67,8 @@ Route → Middleware → Controller → Service / Utils → Model (Mongoose) →
 
 | Path                                       | Module                                        | Responsibility                                                                                      |
 | ------------------------------------------ | --------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `server.js`                                | App bootstrap                                 | Mounts middleware, routes, error handlers; connects DB/Redis; seeds; starts cron; graceful shutdown |
+| `app.js`                                   | Express app                                   | Middleware, routes (mounted under `/api/v1`), error handlers. No side effects — importable by tests without touching real infra |
+| `server.js`                                | Production bootstrap                          | Requires `app.js`; connects DB/Redis; seeds; starts cron; `listen()`; graceful shutdown              |
 | `config/db.js`                             | `connectDB`                                   | Mongoose connection (exits process on failure)                                                      |
 | `config/redis.js`                          | `redisClient`, `connectRedis`                 | Upstash Redis client with graceful degradation                                                      |
 | `middleware/authMiddleware.js`             | `protect`                                     | Verifies JWT, loads `req.user`, rejects deleted users                                               |
@@ -80,6 +81,9 @@ Route → Middleware → Controller → Service / Utils → Model (Mongoose) →
 | `controller/topQuestionController.js`      | community handler                             | Cached community Top Questions                                                                      |
 | `controller/aiController.js`               | AI handlers + cache                           | Generate questions / explanation / from-resume                                                      |
 | `utils/gemini.js`                          | AI client                                     | Gemini→Groq failover + JSON/text helpers                                                            |
+| `utils/email.js`                           | `sendEmail`                                   | SMTP send for forgot-password; logs to console when unconfigured                                    |
+| `utils/monitoring.js`                      | `init`, `captureException`                    | Optional Sentry wiring — no-op unless `SENTRY_DSN` is set                                            |
+| `tests/`                                   | Jest + supertest                              | `npm test` — auth, ownership/403, pagination, AI-mocked mock-interview flow (see § 11)               |
 | `utils/prompts.js`, `utils/mockPrompts.js` | Prompt builders                               | Domain-aware prompt construction                                                                    |
 | `jobs/aggregateTopQuestions.js`            | `startTopQuestionsCron`                       | Hourly community aggregation pipeline                                                               |
 | `seeds/topQuestionSeeds.js`                | `seedTopQuestions`                            | Upsert-safe seed of starter questions                                                               |
@@ -94,7 +98,7 @@ Route → Middleware → Controller → Service / Utils → Model (Mongoose) →
 | `utils/axiosinstance.js`                  | HTTP client   | JWT request interceptor + centralized failure handling            |
 | `utils/apiPaths.js`                       | API map       | Base URL + endpoint constants                                     |
 | `context/userContext.jsx`                 | Auth state    | Current user + token lifecycle                                    |
-| `components/Auth/ProtectedRoute.jsx`      | Route guard   | Redirects unauthenticated users to `/login`                       |
+| `App.jsx`'s inline `ProtectedRoute`        | Route guard   | Redirects unauthenticated users to `/login` (also does route-level code splitting via `React.lazy`) |
 | `components/common/ErrorBoundary.jsx`     | Resilience    | Fallback UI on render crashes                                     |
 | `components/AnswerRenderer.jsx`           | Renderer      | Domain-aware answer/code rendering                                |
 | `components/ui/*`, `components/Layouts/*` | Design system | Reusable UI + app shell                                           |
@@ -103,6 +107,10 @@ Route → Middleware → Controller → Service / Utils → Model (Mongoose) →
 ---
 
 # 3. API Standards
+
+All routes are mounted under `/api/v1` (`app.js`) — versioned from the start
+so a future breaking change has somewhere to land without pulling the rug out
+from under whatever's still calling `/api/v1`.
 
 ## Response Conventions (current)
 
@@ -160,6 +168,17 @@ Route → Middleware → Controller → Service / Utils → Model (Mongoose) →
 - `logoutAllDevices` — bumps `tokenVersion` without touching the password; the
   explicit "log out everywhere" action, including invalidating the very token
   used to call it.
+- `forgotPassword` / `resetPassword` — same enumeration-safe pattern as login
+  (identical response whether or not the email exists). Only a SHA-256 hash of
+  the reset token is ever stored (`User.resetPasswordTokenHash`, `select: false`),
+  1-hour expiry. Delivery goes through `utils/email.js` — logs to the console
+  when `SMTP_*` isn't configured, so the flow is fully testable without a real
+  mail provider.
+- `exportUserData` — everything the app knows about the user (profile,
+  sessions+questions, mock interviews, pin events) as one JSON download.
+- `deleteAccount` — requires the current password as confirmation (a stolen
+  session token alone isn't enough); cascades: deletes owned questions,
+  sessions, mock interviews, and pin events, then the user document itself.
 
 ## Sessions (`sessionController.js`)
 
@@ -288,13 +307,20 @@ PinEvents → group by role+question → count unique users
   rejects any token whose `tokenVersion` doesn't match the user's current value
   — even if the signature and expiry are still valid. Bumped by
   `changePassword` (invalidates every other session) and `logoutAllDevices`
-  (`POST /api/auth/logout-all` — invalidates every session, including the
+  (`POST /api/v1/auth/logout-all` — invalidates every session, including the
   one that called it).
 
 ## Rate Limiting
 
 - `aiRateLimiter`: per user, 30 req / 15 min (env-tunable) → **429**.
-- `authLimiter`: per IP, 10 attempts / 15 min on login/register → **429** (brute-force guard).
+- `authLimiter`: per IP, 10 attempts / 15 min on login/register/forgot-password/
+  reset-password → **429** (brute-force guard).
+- **Redis-backed with in-memory fallback** (`middleware/rateLimiter.js`): atomic
+  `INCR` + `PEXPIRE` gives one shared counter across every instance when Redis
+  is available — the earlier in-memory-only Map only limited within a single
+  process, letting a client get `MAX` requests *per instance* behind a load
+  balancer. Falls straight back to the in-memory Map when Redis is down or a
+  call fails mid-request, same as everywhere else in this codebase.
 - `trust proxy = 1` so limits key on the real client IP behind a proxy.
 
 ## Input & Transport
@@ -336,15 +362,32 @@ log aggregation in production.
 
 # 11. Testing Standards
 
-## Unit Tests — required for
+**Implemented** — `cd backend && npm test` (Jest + supertest, `backend/tests/`).
+Runs against `mongodb-memory-server` (a real, ephemeral, in-memory MongoDB) —
+no real Atlas connection, no secrets, safe in CI. `backend/app.js` exports the
+configured Express app with no side effects (no `listen()`, no DB/Redis
+connect, no cron/seed) specifically so tests can import it directly;
+`backend/server.js` is the thin production bootstrap that wraps it.
 
-- Input validators, slug/JSON parsers, scoring/aggregation logic, AI helpers (mocked).
+## Unit Tests — `tests/gemini.test.js`
 
-## Integration Tests — required for
+- The 4-strategy JSON parser cascade (`extractAndParseJSON`).
 
-- Auth flow, **ownership/403 paths**, session/question/mock lifecycle, cache fallback.
+## Integration Tests — `tests/{auth,sessions,questions,mock,topQuestions}.test.js`
 
-> _Recommended stack:_ Jest + supertest. Prioritize the auth and ownership paths.
+- Auth flow (register/login/protect), **token revocation** (`tokenVersion` on
+  password change and `logout-all`), forgot/reset-password, account
+  export/deletion.
+- **Ownership/403 paths** on sessions, questions, and mock interviews.
+- Session/mock **pagination** (page slicing, no cross-page overlap, limit capping).
+- The top-questions regex-metacharacter regression (`C++ Developer` etc.).
+- Mock interview lifecycle with Gemini **mocked** (`jest.mock("../utils/gemini")`)
+  — no real API calls, no quota burned, deterministic.
+
+## CI
+
+- `.github/workflows/ci.yml` runs `npm test` (backend) and `npm run lint` +
+  `npm run build` (frontend) on every push/PR to `main`.
 
 ---
 
@@ -355,13 +398,19 @@ log aggregation in production.
 - **Startup safety:** fatal boot errors `process.exit(1)`.
 - **Degradation:** Redis or Gemini outages never take the app down.
 - **Health probe:** `GET /health` reports DB + Redis status for load balancers.
-- **Future (multi-instance):** move rate limiting to Redis for shared windows.
+- **Multi-instance:** rate limiting is Redis-backed (§8) so limits are shared
+  correctly across instances, not just within one process.
+- **Monitoring:** `utils/monitoring.js` wires 5xx errors and uncaught
+  exceptions to Sentry when `SENTRY_DSN` is set; a no-op otherwise.
 
 ---
 
 # 13. Frontend Standards
 
-- **Routing:** every private page is wrapped in `ProtectedRoute` (redirects to `/login`).
+- **Routing:** every page is `React.lazy`-loaded in `App.jsx` (route-level code
+  splitting — each page ships as its own chunk instead of one large initial
+  bundle) and wrapped in `<Suspense>`. Every private page is additionally
+  wrapped in `ProtectedRoute` (redirects to `/login`).
 - **HTTP:** all calls go through `axiosInstance` (JWT attached, failures handled centrally). No raw `fetch` for app APIs.
 - **State:** auth via `userContext`; token in `localStorage`, cleared on 401.
 - **Resilience:** `ErrorBoundary` wraps the app.
@@ -383,6 +432,8 @@ log aggregation in production.
 | `AUTH_RATE_LIMIT_MAX`                           | Login/register limiter tuning    |
 | `FRONTEND_URL`                                  | CORS allowlist (comma-separated) |
 | `NODE_ENV`                                      | `production` hides stack traces  |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM` | Forgot-password email delivery — logs to console instead when unset |
+| `SENTRY_DSN`                                    | Error monitoring — no-op when unset |
 | `VITE_API_BASE_URL`                             | Frontend → API base URL          |
 
 ---

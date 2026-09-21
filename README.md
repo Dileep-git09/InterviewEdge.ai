@@ -21,6 +21,7 @@ MongoDB, with Google Gemini (Groq as automatic fallback) for every AI feature.
   - [7. Run it](#7-run-it)
 - [Environment variables reference](#environment-variables-reference)
 - [API overview](#api-overview)
+- [Testing & CI](#testing-ci)
 - [Deployment](#deployment)
 - [Troubleshooting / known gotchas](#troubleshooting-known-gotchas)
 - [Future scope](#future-scope)
@@ -49,6 +50,8 @@ MongoDB, with Google Gemini (Groq as automatic fallback) for every AI feature.
 - **Resilient AI layer** — Gemini is primary; on quota/rate-limit/outage it
   automatically fails over to Groq, so a single provider hiccup doesn't take
   the AI features down.
+- **Account security & data control** — password reset via email, "log out of
+  all devices," and self-service data export or permanent account deletion.
 
 ## Tech stack
 
@@ -81,16 +84,19 @@ deployment, and project direction; it deliberately doesn't repeat that doc.
 
 ```text
 InterviewEdge.ai/
+├── .github/workflows/         # CI — backend tests, frontend lint/build
 ├── backend/
-│   ├── server.js              # App bootstrap: middleware, routes, graceful shutdown
-│   ├── config/                # DB (Mongoose) and Redis client setup
-│   ├── middleware/             # auth, rate limiting, centralized error handling
-│   ├── controller/             # request handlers — one file per resource
-│   ├── routes/                 # route → controller wiring, no logic
-│   ├── models/                 # Mongoose schemas
-│   ├── utils/                  # AI client (Gemini→Groq failover), prompt builders
-│   ├── jobs/                   # hourly Top Questions aggregation cron
-│   └── seeds/                  # upsert-safe starter data
+│   ├── app.js                  # Express app — no side effects, importable by tests
+│   ├── server.js                # Production bootstrap: connects DB/Redis, seeds, listens
+│   ├── config/                 # DB (Mongoose) and Redis client setup
+│   ├── middleware/              # auth, Redis-backed rate limiting, centralized error handling
+│   ├── controller/              # request handlers — one file per resource
+│   ├── routes/                  # route → controller wiring, no logic
+│   ├── models/                  # Mongoose schemas
+│   ├── utils/                   # AI client (Gemini→Groq failover), email, monitoring, prompt builders
+│   ├── jobs/                    # hourly Top Questions aggregation cron
+│   ├── seeds/                   # upsert-safe starter data
+│   └── tests/                   # Jest + supertest, runs against mongodb-memory-server
 └── frontend/
     ├── src/
     │   ├── pages/               # one folder per screen (Dashboard, MockInterview, Analytics, ...)
@@ -219,11 +225,13 @@ Full annotated template: [`backend/.env.example`](backend/.env.example),
 | `FRONTEND_URL` | backend | production only | Comma-separated CORS allowlist; open to all origins when unset (dev convenience) |
 | `AI_RATE_LIMIT_MAX` / `AI_RATE_LIMIT_WINDOW_MS` | backend | no | Tune the per-user AI request limiter |
 | `AUTH_RATE_LIMIT_MAX` | backend | no | Tune the per-IP login/register brute-force limiter |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM` | backend | recommended | Forgot-password email delivery — without these, reset links are logged to the server console instead of sent |
+| `SENTRY_DSN` | backend | no | Error monitoring (sentry.io) — a no-op until set |
 | `VITE_API_BASE_URL` | frontend | production only | Backend URL — baked in at **build** time, must be set in your hosting provider's build environment, not just a local `.env` |
 
 ## API overview
 
-All routes are prefixed with `/api`. Full request/response conventions,
+All routes are versioned under `/api/v1`. Full request/response conventions,
 status-code standards, and per-endpoint function references are in
 [ENGINEERING_GUIDELINES.md §§ 3–4](ENGINEERING_GUIDELINES.md#3-api-standards).
 
@@ -234,6 +242,10 @@ status-code standards, and per-endpoint function references are in
 | GET / PUT | `/auth/profile` | ✓ | Get / update profile |
 | PUT | `/auth/change-password` | ✓ | Change password — invalidates every other session |
 | POST | `/auth/logout-all` | ✓ | Invalidate every session, including this one |
+| POST | `/auth/forgot-password` | — | Request a password reset link |
+| POST | `/auth/reset-password/:token` | — | Reset password with a valid token |
+| GET | `/auth/export` | ✓ | Download everything InterviewEdge has stored about you |
+| DELETE | `/auth/account` | ✓ | Permanently delete your account and all owned data (requires password) |
 | POST | `/ai/generate-questions` | ✓ | Generate role-specific questions |
 | POST | `/ai/generate-explanation` | ✓ | Explain a concept |
 | POST | `/ai/generate-from-resume` | ✓ | Generate questions from an uploaded resume |
@@ -250,7 +262,21 @@ status-code standards, and per-endpoint function references are in
 | POST | `/mock/:id/answer` | ✓ | Submit + AI-grade one answer |
 | POST | `/mock/:id/complete` | ✓ | Finish and get the overall debrief |
 | DELETE | `/mock/:id` | ✓ | Delete a mock attempt |
-| GET | `/health` | — | Health probe (DB/Redis status) — for load balancers/uptime monitors |
+| GET | `/health` | — | Health probe (DB/Redis status) — for load balancers/uptime monitors, not versioned |
+
+## Testing & CI
+
+```bash
+cd backend
+npm test
+```
+
+Runs the Jest + supertest suite against `mongodb-memory-server` (a real,
+ephemeral, in-memory MongoDB) — no Atlas connection, no secrets needed, safe
+to run anywhere including CI. Covers auth, token revocation, ownership/403
+paths, pagination, and the mock-interview flow with the AI mocked (no real
+API calls). [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs this
+plus frontend lint/build on every push and PR to `main`.
 
 ## Deployment
 
@@ -270,6 +296,10 @@ status-code standards, and per-endpoint function references are in
    build).
 3. Confirm `GET /health` on the deployed backend returns
    `{ "status": "ok", "db": "connected" }` before pointing the frontend at it.
+4. Optional but worth doing before real users show up: set `SMTP_*` so
+   forgot-password actually sends email (it silently just logs the link to
+   the server console otherwise), and `SENTRY_DSN` so you find out about
+   errors instead of a user reporting them to you first.
 
 ## Troubleshooting / known gotchas
 
@@ -295,21 +325,19 @@ the next person the debugging time:
 - **Redis `WRONGPASS` error** — the token in the connection string doesn't
   match. Re-copy it directly from Upstash's **Connect** tab rather than
   retyping; these tokens are long and easy to lose a character from.
+- **AI question generation 500s with "data.map is not a function"** — despite
+  the prompt asking for a bare JSON array, the model occasionally wraps it in
+  an object instead (e.g. `{ "questions": [...] }`). `aiController.js` and
+  `mockInterviewController.js` both normalise this now, but if a *new* AI call
+  site gets added later without the same normalisation, this is the failure
+  mode to expect — don't assume the model always follows the format
+  instruction literally.
 
 ## Future scope
 
 Ideas for where this could go next, roughly ordered by how much value they'd
 add relative to effort:
 
-- **Automated test suite** — Jest + supertest, prioritizing the auth and
-  ownership/403 paths (see [ENGINEERING_GUIDELINES.md § 11](ENGINEERING_GUIDELINES.md#11-testing-standards)).
-  Nothing is automated today; every check so far has been manual.
-- **CI pipeline** — GitHub Actions running lint + build on every PR. Would
-  have caught several bugs found during manual pre-deployment review before
-  they ever reached a person.
-- **Redis-backed rate limiting** — the current limiter is in-memory per
-  process; fine for a single instance, but won't share state across multiple
-  instances behind a load balancer (already flagged in the engineering docs).
 - **Voice-based mock interviews** — speech-to-text answer input for a more
   realistic interview simulation than typing.
 - **Peer comparison / leaderboards** — surface how your mock scores compare

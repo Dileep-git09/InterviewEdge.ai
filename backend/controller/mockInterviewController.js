@@ -136,9 +136,16 @@ exports.startMockInterview = async (req, res) => {
       }
 
       const prompt = mockQuestionsPrompt(role, experience, topicsToFocus, count, safeDifficulty);
-      const generated = await callGeminiForJSON(prompt);
+      const rawGenerated = await callGeminiForJSON(prompt);
+      // The model occasionally wraps the array in an object despite the
+      // prompt asking for a bare array — normalise both shapes.
+      const generated = Array.isArray(rawGenerated)
+        ? rawGenerated
+        : Array.isArray(rawGenerated?.questions)
+          ? rawGenerated.questions
+          : null;
 
-      if (!Array.isArray(generated) || generated.length === 0) {
+      if (!generated || generated.length === 0) {
         throw new Error("AI did not return any questions.");
       }
 

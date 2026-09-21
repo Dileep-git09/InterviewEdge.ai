@@ -124,7 +124,20 @@ const generateInterviewQuestions = async (req, res) => {
 
     const data = await callAIForJSON(prompt);
 
-    const dataWithDifficulty = data.map((q) => ({
+    // The prompt asks for a bare JSON array, but the model occasionally wraps
+    // it in an object instead (e.g. { questions: [...] }) despite the
+    // instruction — normalise both shapes rather than crashing on .map().
+    const questionsArray = Array.isArray(data)
+      ? data
+      : Array.isArray(data?.questions)
+        ? data.questions
+        : null;
+
+    if (!questionsArray) {
+      throw new Error("AI returned an unexpected response shape (expected a JSON array of questions).");
+    }
+
+    const dataWithDifficulty = questionsArray.map((q) => ({
       ...q,
       difficulty: safeDifficulty,
     }));
