@@ -326,6 +326,25 @@ const deleteAccount = async (req, res) => {
   }
 };
 
+// ── @route  PUT /api/auth/leaderboard-preference ─────────────────────────────
+// body: { optOut: boolean }
+const updateLeaderboardPreference = async (req, res) => {
+  try {
+    const { optOut } = req.body;
+    if (typeof optOut !== "boolean") {
+      return res.status(400).json({ message: "optOut must be a boolean." });
+    }
+    await User.findByIdAndUpdate(req.user.id, { leaderboardOptOut: optOut });
+    res.status(200).json({
+      message: optOut ? "You're now hidden from leaderboards." : "You're now visible on leaderboards.",
+      leaderboardOptOut: optOut,
+    });
+  } catch (error) {
+    console.error("updateLeaderboardPreference error:", error.message);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
 module.exports = {
   registerUser,
   loginUser,
@@ -337,4 +356,5 @@ module.exports = {
   resetPassword,
   exportUserData,
   deleteAccount,
+  updateLeaderboardPreference,
 };

@@ -9,6 +9,7 @@ import axiosInstance from "../../utils/axiosinstance";
 import { API_PATHS } from "../../utils/apiPaths";
 import { Card, StatCard, SectionHeading } from "../../components/ui/primitives";
 import Button from "../../components/ui/Button";
+import LeaderboardPanel from "../../components/Cards/LeaderboardPanel";
 
 // ── Lightweight SVG area/line chart ──────────────────────────────────────────
 const LineChart = ({ data }) => {
@@ -80,6 +81,7 @@ const Analytics = () => {
   const navigate = useNavigate();
   const [mocks, setMocks] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [leaderboardRole, setLeaderboardRole] = useState("");
 
   useEffect(() => {
     (async () => {
@@ -96,10 +98,17 @@ const Analytics = () => {
     })();
   }, []);
 
-  const { scoreSeries, byDifficulty, avg, best, completionRate } = useMemo(() => {
+  const { scoreSeries, byDifficulty, avg, best, completionRate, roles } = useMemo(() => {
     const completed = mocks
       .filter((m) => m.status === "completed" && typeof m.overallScore === "number")
       .sort((a, b) => new Date(a.completedAt || a.createdAt) - new Date(b.completedAt || b.createdAt));
+
+    // Most-recently-attempted role first, de-duplicated (mocks is already
+    // newest-first from the API, so the first occurrence of each role here
+    // is the newest one) — used to default and populate the role picker.
+    const roles = [...new Map(
+      mocks.map((m) => [m.role.toLowerCase().trim(), m.role])
+    ).values()];
 
     const scoreSeries = completed.slice(-12).map((m) => ({
       label: moment(m.completedAt || m.createdAt).format("DD/MM"),
@@ -115,8 +124,13 @@ const Analytics = () => {
     const best = completed.length ? Math.max(...completed.map((m) => m.overallScore)) : null;
     const completionRate = mocks.length ? Math.round((completed.length / mocks.length) * 100) : 0;
 
-    return { completed, scoreSeries, byDifficulty, avg, best, completionRate };
+    return { completed, scoreSeries, byDifficulty, avg, best, completionRate, roles };
   }, [mocks]);
+
+  // Default the leaderboard's role picker to the most recently attempted role.
+  useEffect(() => {
+    if (roles.length > 0 && !leaderboardRole) setLeaderboardRole(roles[0]);
+  }, [roles, leaderboardRole]);
 
   if (loading) {
     return (
@@ -170,6 +184,25 @@ const Analytics = () => {
                 <div className="mt-6"><BarChart data={byDifficulty} /></div>
               </Card>
             </div>
+
+            {/* Leaderboard */}
+            {roles.length > 0 && (
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <SectionHeading title="How you compare" subtitle="Best score per person, for the role you pick" />
+                  <select
+                    value={leaderboardRole}
+                    onChange={(e) => setLeaderboardRole(e.target.value)}
+                    className="text-sm font-medium border border-slate-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                  >
+                    {roles.map((r) => (
+                      <option key={r} value={r}>{r}</option>
+                    ))}
+                  </select>
+                </div>
+                <LeaderboardPanel role={leaderboardRole} limit={10} />
+              </div>
+            )}
 
             {/* Recent table */}
             <Card className="p-6">

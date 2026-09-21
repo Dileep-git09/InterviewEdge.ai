@@ -1,6 +1,6 @@
 import React, { useState, useContext } from "react";
 import { useNavigate } from "react-router-dom";
-import { LuUser, LuMail, LuLock, LuCheck, LuLoader, LuEye, LuEyeOff, LuLogOut, LuDownload, LuTrash2 } from "react-icons/lu";
+import { LuUser, LuMail, LuLock, LuCheck, LuLoader, LuEye, LuEyeOff, LuLogOut, LuDownload, LuTrash2, LuTrophy } from "react-icons/lu";
 import toast from "react-hot-toast";
 import DashboardLayout from "../../components/Layouts/DashboardLayout";
 import Modal from "../../components/Modal";
@@ -76,6 +76,10 @@ const MyProfile = () => {
   // ── Security section state ────────────────────────────────────────────────
   const [loggingOutAll, setLoggingOutAll]         = useState(false);
   const [exporting, setExporting]                 = useState(false);
+
+  // ── Privacy section state ─────────────────────────────────────────────────
+  const [leaderboardOptOut, setLeaderboardOptOut] = useState(user?.leaderboardOptOut ?? false);
+  const [savingPreference, setSavingPreference]   = useState(false);
 
   // ── Danger zone state ─────────────────────────────────────────────────────
   const [deleteModalOpen, setDeleteModalOpen]     = useState(false);
@@ -174,6 +178,22 @@ const MyProfile = () => {
       toast.error(err.response?.data?.message || "Failed to export your data.");
     } finally {
       setExporting(false);
+    }
+  };
+
+  // ── Leaderboard visibility ────────────────────────────────────────────────
+  const handleToggleLeaderboard = async () => {
+    const next = !leaderboardOptOut;
+    setSavingPreference(true);
+    try {
+      await axiosInstance.put(API_PATHS.AUTH.LEADERBOARD_PREFERENCE, { optOut: next });
+      setLeaderboardOptOut(next);
+      updateUser({ ...user, leaderboardOptOut: next });
+      toast.success(next ? "You're hidden from leaderboards." : "You're visible on leaderboards again.");
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to update your preference.");
+    } finally {
+      setSavingPreference(false);
     }
   };
 
@@ -376,6 +396,32 @@ const MyProfile = () => {
               ) : (
                 <><LuDownload size={14} /> Download my data</>
               )}
+            </button>
+          </div>
+        </Section>
+
+        {/* ── Privacy ── */}
+        <Section title="Privacy" subtitle="Leaderboards are on by default — your best score per role, shown as a masked name (e.g. “Asha K.”).">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-2 text-xs text-slate-400">
+              <LuTrophy size={14} className="flex-shrink-0" />
+              <span>Appear on public leaderboards</span>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={!leaderboardOptOut}
+              disabled={savingPreference}
+              onClick={handleToggleLeaderboard}
+              className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors disabled:opacity-60 ${
+                !leaderboardOptOut ? "bg-indigo-600" : "bg-slate-200"
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                  !leaderboardOptOut ? "translate-x-6" : "translate-x-1"
+                }`}
+              />
             </button>
           </div>
         </Section>

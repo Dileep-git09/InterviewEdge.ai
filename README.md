@@ -47,6 +47,10 @@ MongoDB, with Google Gemini (Groq as automatic fallback) for every AI feature.
 - **Prep Kit** — curated topics with real-world frequency signal, so you know
   where to spend your prep time.
 - **Progress analytics** — track your mock interview history and scores.
+- **Leaderboards** — see your best score per role ranked against everyone
+  else who's attempted it, with a percentile ("better than 73% of
+  attempts") right on the mock-results screen. Named by default (masked as
+  "First L.", e.g. "Asha K."), with a one-tap opt-out in Profile → Privacy.
 - **Resilient AI layer** — Gemini is primary; on quota/rate-limit/outage it
   automatically fails over to Groq, so a single provider hiccup doesn't take
   the AI features down.
@@ -246,6 +250,7 @@ status-code standards, and per-endpoint function references are in
 | POST | `/auth/reset-password/:token` | — | Reset password with a valid token |
 | GET | `/auth/export` | ✓ | Download everything InterviewEdge has stored about you |
 | DELETE | `/auth/account` | ✓ | Permanently delete your account and all owned data (requires password) |
+| PUT | `/auth/leaderboard-preference` | ✓ | Opt in/out of being named on leaderboards (on by default) |
 | POST | `/ai/generate-questions` | ✓ | Generate role-specific questions |
 | POST | `/ai/generate-explanation` | ✓ | Explain a concept |
 | POST | `/ai/generate-from-resume` | ✓ | Generate questions from an uploaded resume |
@@ -262,6 +267,7 @@ status-code standards, and per-endpoint function references are in
 | POST | `/mock/:id/answer` | ✓ | Submit + AI-grade one answer |
 | POST | `/mock/:id/complete` | ✓ | Finish and get the overall debrief |
 | DELETE | `/mock/:id` | ✓ | Delete a mock attempt |
+| GET | `/leaderboard?role=&limit=` | ✓ | Best score per person for a role, ranked, plus your own rank |
 | GET | `/health` | — | Health probe (DB/Redis status) — for load balancers/uptime monitors, not versioned |
 
 ## Testing & CI
@@ -274,8 +280,9 @@ npm test
 Runs the Jest + supertest suite against `mongodb-memory-server` (a real,
 ephemeral, in-memory MongoDB) — no Atlas connection, no secrets needed, safe
 to run anywhere including CI. Covers auth, token revocation, ownership/403
-paths, pagination, and the mock-interview flow with the AI mocked (no real
-API calls). [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs this
+paths, pagination, the leaderboard ranking/opt-out logic, and the
+mock-interview flow with the AI mocked (no real API calls).
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs this
 plus frontend lint/build on every push and PR to `main`.
 
 ## Deployment
@@ -340,9 +347,6 @@ add relative to effort:
 
 - **Voice-based mock interviews** — speech-to-text answer input for a more
   realistic interview simulation than typing.
-- **Peer comparison / leaderboards** — surface how your mock scores compare
-  to others in the same role, building on the existing community
-  Top-Questions signal.
 - **Multi-language question generation** — carried over from the original
   project roadmap, not yet built.
 - **Shareable results** — export a mock interview debrief as a PDF or a

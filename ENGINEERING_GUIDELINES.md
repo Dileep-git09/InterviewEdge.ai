@@ -79,6 +79,7 @@ Route → Middleware → Controller → Service / Utils → Model (Mongoose) →
 | `controller/questionController.js`         | question handlers                             | Add / pin / note questions                                                                          |
 | `controller/mockInterviewController.js`    | mock handlers                                 | Start / answer / complete / fetch / delete mocks                                                    |
 | `controller/topQuestionController.js`      | community handler                             | Cached community Top Questions                                                                      |
+| `controller/leaderboardController.js`      | leaderboard handler                           | Best-score-per-user ranking per role, Redis-cached, opt-out-aware                                    |
 | `controller/aiController.js`               | AI handlers + cache                           | Generate questions / explanation / from-resume                                                      |
 | `utils/gemini.js`                          | AI client                                     | Gemini→Groq failover + JSON/text helpers                                                            |
 | `utils/email.js`                           | `sendEmail`                                   | SMTP send for forgot-password; logs to console when unconfigured                                    |
@@ -179,6 +180,8 @@ from under whatever's still calling `/api/v1`.
 - `deleteAccount` — requires the current password as confirmation (a stolen
   session token alone isn't enough); cascades: deletes owned questions,
   sessions, mock interviews, and pin events, then the user document itself.
+- `updateLeaderboardPreference` — toggles `User.leaderboardOptOut` (see § 4
+  Leaderboard for what opting out actually hides vs. still counts).
 
 ## Sessions (`sessionController.js`)
 
@@ -205,6 +208,23 @@ from under whatever's still calling `/api/v1`.
 ## Top Questions (`topQuestionController.js`)
 
 - `getTopQuestions` — 3-layer cache read; `normaliseRole` for fuzzy role matching.
+  Exports `normaliseRole` and `escapeRegExp` — reused by `leaderboardController.js`
+  for its own exact (not fuzzy) role matching.
+
+## Leaderboard (`leaderboardController.js`)
+
+- `getLeaderboard` — best completed-mock score per user for a role, ranked
+  descending. Redis-cached as `{ userId, score }` pairs only (no names, TTL
+  10 min) — reusable across every requester and never goes stale from a
+  display-name or opt-out change. Names are resolved and masked
+  (`"Asha K."`) per-request from the cached ranking.
+- `maskName` — `"Asha Kapoor"` → `"Asha K."`, matching the testimonial format
+  already used on the landing page.
+- Opt-out (`User.leaderboardOptOut`) only hides a user from *others'* view of
+  the named list — they're still counted toward `total` and their own
+  `you` block always reflects their real rank, whether or not they've
+  opted out. Toggled via `PUT /auth/leaderboard-preference`
+  (`authController.updateLeaderboardPreference`).
 
 ## AI Client (`utils/gemini.js`)
 
@@ -254,6 +274,7 @@ Client → ① CDN (edge, Cache-Control) → ② Redis (Upstash, ~5ms) → ③ M
 | Redis — questions     | 24 h                                          | Keyed by role+topics+difficulty |
 | Redis — explanations  | 7 days                                        | Stable content                  |
 | Redis — top-questions | 1 h                                           | Busted by the cron              |
+| Redis — leaderboard   | 10 min                                        | `{userId, score}` only — no names, so it's requester-agnostic |
 | Résumé generation     | **not cached**                                | Unique per upload               |
 
 > **Rule:** every cache call checks `redisClient.isReady` first → graceful
@@ -373,7 +394,7 @@ connect, no cron/seed) specifically so tests can import it directly;
 
 - The 4-strategy JSON parser cascade (`extractAndParseJSON`).
 
-## Integration Tests — `tests/{auth,sessions,questions,mock,topQuestions}.test.js`
+## Integration Tests — `tests/{auth,sessions,questions,mock,topQuestions,leaderboard}.test.js`
 
 - Auth flow (register/login/protect), **token revocation** (`tokenVersion` on
   password change and `logout-all`), forgot/reset-password, account
@@ -383,6 +404,10 @@ connect, no cron/seed) specifically so tests can import it directly;
 - The top-questions regex-metacharacter regression (`C++ Developer` etc.).
 - Mock interview lifecycle with Gemini **mocked** (`jest.mock("../utils/gemini")`)
   — no real API calls, no quota burned, deterministic.
+- Leaderboard ranking (best-score-per-user, not every attempt), exact
+  case-insensitive role matching, and the opt-out privacy contract (hidden
+  from others' named list, still counted toward total/percentile, always
+  visible to the user themselves).
 
 ## CI
 

@@ -11,6 +11,7 @@ const {
   resetPassword,
   exportUserData,
   deleteAccount,
+  updateLeaderboardPreference,
 } = require("../controller/authController");
 const { protect } = require("../middleware/authMiddleware");
 const { authLimiter } = require("../middleware/rateLimiter");
@@ -25,5 +26,6 @@ router.post("/forgot-password",        authLimiter, forgotPassword);
 router.post("/reset-password/:token",  authLimiter, resetPassword);
 router.get("/export",     protect, exportUserData);      // ← download all my data
 router.delete("/account", protect, deleteAccount);        // ← permanently delete account + data
+router.put("/leaderboard-preference", protect, updateLeaderboardPreference); // ← opt in/out of named leaderboards
 
 module.exports = router;

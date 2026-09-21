@@ -94,4 +94,7 @@ const mockInterviewSchema = new mongoose.Schema(
 // Fast retrieval of a user's attempt history, newest first
 mockInterviewSchema.index({ user: 1, createdAt: -1 });
 
+// Leaderboard lookups filter by role (anchored case-insensitive regex) + status
+mockInterviewSchema.index({ role: 1, status: 1 });
+
 module.exports = mongoose.model("MockInterview", mockInterviewSchema);

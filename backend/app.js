@@ -22,6 +22,7 @@ const sessionRoutes      = require("./routes/sessionRoutes");
 const questionRoutes     = require("./routes/questionRoutes");
 const topQuestionRoutes  = require("./routes/topQuestionRoutes");
 const mockInterviewRoutes = require("./routes/mockInterviewRoutes");
+const leaderboardRoutes  = require("./routes/leaderboardRoutes");
 const { protect }       = require("./middleware/authMiddleware");
 const { aiRateLimiter } = require("./middleware/rateLimiter");
 const { notFound, errorHandler } = require("./middleware/errorMiddleware");
@@ -107,6 +108,7 @@ v1.use("/sessions",      sessionRoutes);
 v1.use("/questions",     questionRoutes);
 v1.use("/top-questions", topQuestionRoutes); // public — CDN cacheable
 v1.use("/mock",          mockInterviewRoutes);
+v1.use("/leaderboard",   leaderboardRoutes);
 
 // AI routes — authenticated + per-user rate limited (protects the AI quota)
 v1.post("/ai/generate-questions",   protect, aiRateLimiter, generateInterviewQuestions);

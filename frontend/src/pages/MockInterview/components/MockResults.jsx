@@ -12,6 +12,7 @@ import {
 import ScoreRing from "./ScoreRing";
 import { bandColor } from "./scoreColors";
 import EvaluationPanel from "./EvaluationPanel";
+import LeaderboardPanel from "../../../components/Cards/LeaderboardPanel";
 
 const formatTime = (sec = 0) => {
   const m = Math.floor(sec / 60);
@@ -166,6 +167,14 @@ const MockResults = ({ mock, onRetry, onDashboard }) => {
           </button>
         </div>
       </motion.div>
+
+      {/* How you compare */}
+      <div className="mt-6">
+        <h2 className="text-lg font-semibold text-gray-900 mb-3 px-1">
+          How you compare
+        </h2>
+        <LeaderboardPanel role={mock.role} limit={5} compact />
+      </div>
 
       {/* Per-question breakdown */}
       <h2 className="text-lg font-semibold text-gray-900 mt-8 mb-3 px-1">

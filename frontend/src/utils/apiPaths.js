@@ -16,6 +16,7 @@ export const API_PATHS = {
     RESET_PASSWORD:  (token) => `${V1}/auth/reset-password/${token}`, // POST
     EXPORT_DATA:     `${V1}/auth/export`,          // GET — download all my data
     DELETE_ACCOUNT:  `${V1}/auth/account`,         // DELETE — permanently delete account
+    LEADERBOARD_PREFERENCE: `${V1}/auth/leaderboard-preference`, // PUT — opt in/out
   },
   AI: {
     GENERATE_QUESTIONS:  `${V1}/ai/generate-questions`,
@@ -44,5 +45,9 @@ export const API_PATHS = {
     ANSWER:   (id) => `${V1}/mock/${id}/answer`,
     COMPLETE: (id) => `${V1}/mock/${id}/complete`,
     DELETE:   (id) => `${V1}/mock/${id}`,
+  },
+  LEADERBOARD: {
+    GET: (role, limit = 10) =>
+      `${V1}/leaderboard?role=${encodeURIComponent(role)}&limit=${limit}`,
   },
 };

@@ -14,6 +14,8 @@ const UserSchema = new mongoose.Schema(
     // usable reset tokens). Cleared once used or expired.
     resetPasswordTokenHash: { type: String, default: null, select: false },
     resetPasswordExpires:   { type: Date, default: null, select: false },
+    // Leaderboards are named + on by default; this is the opt-out switch.
+    leaderboardOptOut: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

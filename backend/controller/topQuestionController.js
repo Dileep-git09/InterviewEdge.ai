@@ -110,4 +110,4 @@ const getTopQuestions = async (req, res) => {
   }
 };
 
-module.exports = { getTopQuestions, normaliseRole };
+module.exports = { getTopQuestions, normaliseRole, escapeRegExp };
