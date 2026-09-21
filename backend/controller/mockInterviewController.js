@@ -1,7 +1,7 @@
 const MockInterview = require("../models/MockInterview");
 const Session = require("../models/Session");
 const mongoose = require("mongoose");
-const { callGeminiForJSON } = require("../utils/gemini");
+const { callGeminiForJSON, normaliseQuestionsArray } = require("../utils/gemini");
 const {
   mockQuestionsPrompt,
   mockEvaluationPrompt,
@@ -137,13 +137,7 @@ exports.startMockInterview = async (req, res) => {
 
       const prompt = mockQuestionsPrompt(role, experience, topicsToFocus, count, safeDifficulty);
       const rawGenerated = await callGeminiForJSON(prompt);
-      // The model occasionally wraps the array in an object despite the
-      // prompt asking for a bare array — normalise both shapes.
-      const generated = Array.isArray(rawGenerated)
-        ? rawGenerated
-        : Array.isArray(rawGenerated?.questions)
-          ? rawGenerated.questions
-          : null;
+      const generated = normaliseQuestionsArray(rawGenerated);
 
       if (!generated || generated.length === 0) {
         throw new Error("AI did not return any questions.");

@@ -4,7 +4,7 @@ const crypto   = require("crypto");
 const Session  = require("../models/Session");
 const Question = require("../models/Question");
 const { redisClient }   = require("../config/redis");
-const { callAIForJSON } = require("../utils/gemini");   // ← shared helper (Gemini + Grok fallback)
+const { callAIForJSON, normaliseQuestionsArray } = require("../utils/gemini");   // ← shared helper (Gemini + Grok fallback)
 const {
   questionAnswerPrompt,
   conceptExplainPrompt,
@@ -123,15 +123,7 @@ const generateInterviewQuestions = async (req, res) => {
     );
 
     const data = await callAIForJSON(prompt);
-
-    // The prompt asks for a bare JSON array, but the model occasionally wraps
-    // it in an object instead (e.g. { questions: [...] }) despite the
-    // instruction — normalise both shapes rather than crashing on .map().
-    const questionsArray = Array.isArray(data)
-      ? data
-      : Array.isArray(data?.questions)
-        ? data.questions
-        : null;
+    const questionsArray = normaliseQuestionsArray(data);
 
     if (!questionsArray) {
       throw new Error("AI returned an unexpected response shape (expected a JSON array of questions).");

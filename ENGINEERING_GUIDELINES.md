@@ -230,6 +230,13 @@ from under whatever's still calling `/api/v1`.
 
 - `callGemini` → primary; `callGroq` → fallback.
 - `callAIForJSON` / `callAIForText` — failover + 4-strategy JSON parse cascade.
+- `normaliseQuestionsArray` — every "give me a list of questions" prompt asks
+  for a bare JSON array, but neither provider follows that literally 100% of
+  the time. Confirmed live (including once in production, via Groq) that a
+  response can come back as `{ questions: [...] }` or even a single
+  `{ question, answer }` object with no array when the model only generates
+  one item. Any new call site expecting a list of questions should reuse this
+  rather than assuming `Array.isArray(data)`.
 
 ---
 

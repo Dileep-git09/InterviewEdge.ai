@@ -332,13 +332,17 @@ the next person the debugging time:
 - **Redis `WRONGPASS` error** — the token in the connection string doesn't
   match. Re-copy it directly from Upstash's **Connect** tab rather than
   retyping; these tokens are long and easy to lose a character from.
-- **AI question generation 500s with "data.map is not a function"** — despite
-  the prompt asking for a bare JSON array, the model occasionally wraps it in
-  an object instead (e.g. `{ "questions": [...] }`). `aiController.js` and
-  `mockInterviewController.js` both normalise this now, but if a *new* AI call
-  site gets added later without the same normalisation, this is the failure
-  mode to expect — don't assume the model always follows the format
-  instruction literally.
+- **AI question generation 500s with "AI returned an unexpected response
+  shape" / "data.map is not a function"** — despite the prompt asking for a
+  bare JSON array, the model doesn't always follow that literally. Confirmed
+  live (including once in production, via Groq's fallback specifically) that
+  it can come back as `{ "questions": [...] }` (wrapped) or even a single
+  `{ "question", "answer" }` object with no array at all when it only
+  generates one item. `utils/gemini.js`'s `normaliseQuestionsArray` handles
+  all three shapes and is used by both `aiController.js` and
+  `mockInterviewController.js` — if a *new* AI call site expecting a list
+  gets added later, reuse it rather than assuming a bare array; this is the
+  failure mode to expect otherwise.
 
 ## Future scope
 

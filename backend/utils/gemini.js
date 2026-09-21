@@ -204,9 +204,27 @@ const callAIForText = async (prompt) => {
 const callGeminiForJSON = callAIForJSON;
 const callGeminiForText = callAIForText;
 
+// ─────────────────────────────────────────────────────────────────────────────
+// normaliseQuestionsArray — every prompt that asks for a list of
+// {question, answer}-shaped items asks for a bare JSON array, but neither
+// provider follows that literally 100% of the time. Confirmed live (prod
+// logs + repeated direct calls) that both providers can instead return:
+//   - { questions: [...] }        — wrapped in an object
+//   - { question, answer }        — collapsed to a single item, no array at all
+// Returns the extracted array, or null if the shape is genuinely
+// unrecognisable (caller should treat that as a hard failure, not guess).
+// ─────────────────────────────────────────────────────────────────────────────
+const normaliseQuestionsArray = (data) => {
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.questions)) return data.questions;
+  if (data && typeof data === "object" && typeof data.question === "string") return [data];
+  return null;
+};
+
 module.exports = {
   callAIForJSON,
   callAIForText,
+  normaliseQuestionsArray,
   callGeminiForJSON,
   callGeminiForText,
   extractAndParseJSON,

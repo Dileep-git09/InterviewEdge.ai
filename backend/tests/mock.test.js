@@ -3,6 +3,7 @@
 // deterministic, and don't burn real API quota (per ENGINEERING_GUIDELINES.md
 // §11: "AI helpers (mocked)").
 jest.mock("../utils/gemini", () => ({
+  ...jest.requireActual("../utils/gemini"), // keep the real normaliseQuestionsArray etc.
   callGeminiForJSON: jest.fn(),
 }));
 
