@@ -26,7 +26,7 @@ const LineChart = ({ data }) => {
   const area = `${line} L${xy[xy.length - 1][0]},${H - P} L${xy[0][0]},${H - P} Z`;
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-56">
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ aspectRatio: `${W} / ${H}` }}>
       <defs>
         <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="#6366f1" stopOpacity="0.25" />

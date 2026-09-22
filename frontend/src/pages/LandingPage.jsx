@@ -307,7 +307,7 @@ const LandingPage = () => {
               ) : (
                 <>
                   <Link to="/login"
-                    className="text-sm font-medium text-gray-600 hover:text-gray-900 transition mr-1 hidden sm:block">
+                    className="text-sm font-medium text-gray-600 hover:text-gray-900 transition mr-1 hidden sm:block whitespace-nowrap flex-shrink-0">
                     Log in
                   </Link>
                   <Link to="/signup"

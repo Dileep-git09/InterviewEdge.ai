@@ -61,8 +61,8 @@ export const StatCard = ({ icon, label, value, sublabel, tone = "indigo" }) => {
       </div>
       <div className="min-w-0">
         <p className="text-2xl font-extrabold text-slate-900 leading-none">{value}</p>
-        <p className="text-sm text-slate-500 mt-1 truncate">{label}</p>
-        {sublabel && <p className="text-[11px] text-slate-400 mt-0.5 truncate">{sublabel}</p>}
+        <p className="text-sm text-slate-500 mt-1">{label}</p>
+        {sublabel && <p className="text-[11px] text-slate-400 mt-0.5">{sublabel}</p>}
       </div>
     </Card>
   );
